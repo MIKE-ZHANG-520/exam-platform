@@ -41,7 +41,7 @@ function parseMarkdown(md: string): Section[] {
 		buf.length = 0
 	}
 
-	let listBuf: string[] = []
+	const listBuf: string[] = []
 	let listOrdered = false
 	let listStart: number | undefined
 
