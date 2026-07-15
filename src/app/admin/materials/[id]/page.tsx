@@ -233,6 +233,8 @@ export default function MaterialDetailPage() {
 	const [loading, setLoading] = useState(true)
 	const [genBank, setGenBank] = useState<null | "easy" | "medium">(null)
 	const [genBankElapsed, setGenBankElapsed] = useState(0)
+	const [genBankBatch, setGenBankBatch] = useState(0)
+	const [genBankTotal, setGenBankTotal] = useState(0)
 
 	const load = useCallback(() => {
 		setLoading(true)
@@ -249,10 +251,54 @@ export default function MaterialDetailPage() {
 	const generateBank = async (difficulty: "easy" | "medium") => {
 		setGenBank(difficulty)
 		setGenBankElapsed(0)
+		setGenBankBatch(0)
+		setGenBankTotal(0)
 		const timer = setInterval(() => setGenBankElapsed((s) => s + 1), 1000)
 		try {
-			await apiPost(`/api/materials/${id}/questions`, { difficulty })
-			toast.success(`${difficulty === "easy" ? "简易" : "中等"}题库已生成并自动发布，可在题库详情中查看编辑`)
+			// 前端循环调用 4 次，每次单独请求 ~30s，避免网关超时
+			const TOTAL = 4
+			let bankId: number | null = null
+			let totalGenerated = 0
+			const failedBatches: number[] = []
+			interface BatchResp {
+				bankId: number
+				batchIndex: number
+				totalBatches: number
+				generatedInBatch: number
+				totalGenerated: number
+				done: boolean
+				error?: string
+			}
+			for (let i = 0; i < TOTAL; i++) {
+				setGenBankBatch(i + 1)
+				try {
+					const resp: BatchResp = await apiPost<BatchResp>(`/api/materials/${id}/questions`, {
+						difficulty,
+						batchIndex: i,
+						bankId,
+					})
+					bankId = resp.bankId
+					totalGenerated = resp.totalGenerated || totalGenerated
+					setGenBankTotal(totalGenerated)
+					if (resp.error) {
+						failedBatches.push(i + 1)
+					}
+				} catch (batchErr) {
+					failedBatches.push(i + 1)
+					console.error(`第 ${i + 1} 批失败:`, batchErr)
+					// 单批失败不中断，继续下一批
+				}
+			}
+
+			if (totalGenerated === 0) {
+				toast.error("题库生成失败，所有批次均未产出题目，请重试")
+			} else if (failedBatches.length > 0) {
+				toast.warning(
+					`${difficulty === "easy" ? "简易" : "中等"}题库已生成 ${totalGenerated} 题（第 ${failedBatches.join("、")} 批失败）`,
+				)
+			} else {
+				toast.success(`${difficulty === "easy" ? "简易" : "中等"}题库已生成 ${totalGenerated} 题并自动发布`)
+			}
 			load()
 		} catch (e) {
 			toast.error((e as Error).message)
@@ -260,6 +306,8 @@ export default function MaterialDetailPage() {
 			clearInterval(timer)
 			setGenBank(null)
 			setGenBankElapsed(0)
+			setGenBankBatch(0)
+			setGenBankTotal(0)
 		}
 	}
 
@@ -302,7 +350,9 @@ export default function MaterialDetailPage() {
 						disabled={genBank !== null}
 					>
 						{genBank === "easy" ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Sparkles className="w-4 h-4 mr-1.5" />}
-						{genBank === "easy" ? `AI 正在生成（${genBankElapsed}s）` : "AI 生成简易题库"}
+						{genBank === "easy"
+							? `生成中 ${genBankBatch}/4 · 已产出 ${genBankTotal} 题（${genBankElapsed}s）`
+							: "AI 生成简易题库"}
 					</Button>
 					<Button
 						variant="outline"
@@ -310,7 +360,9 @@ export default function MaterialDetailPage() {
 						disabled={genBank !== null}
 					>
 						{genBank === "medium" ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Sparkles className="w-4 h-4 mr-1.5" />}
-						{genBank === "medium" ? `AI 正在生成（${genBankElapsed}s）` : "AI 生成中等题库"}
+						{genBank === "medium"
+							? `生成中 ${genBankBatch}/4 · 已产出 ${genBankTotal} 题（${genBankElapsed}s）`
+							: "AI 生成中等题库"}
 					</Button>
 				</div>
 			</div>

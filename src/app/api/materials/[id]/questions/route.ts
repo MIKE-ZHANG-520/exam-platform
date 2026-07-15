@@ -5,7 +5,7 @@ import { requireSession } from "@/lib/auth";
 import type { QuestionOption, QuestionType } from "@/lib/types";
 
 export const runtime = "nodejs";
-export const maxDuration = 300;
+export const maxDuration = 120;
 
 interface Params {
   params: Promise<{ id: string }>;
@@ -100,7 +100,7 @@ const MEDIUM_BATCH_PROMPT = `${SAFETY_EXPERT_ROLE}
 
 六、输出严格 JSON 数组（10 个对象），禁止 Markdown 代码块外的任何说明文字。`;
 
-const NUM_BATCHES = 4;
+const TOTAL_BATCHES = 4;
 
 function sanitizeQuestions(raw: RawQuestion[]): RawQuestion[] {
   return raw
@@ -125,7 +125,6 @@ function sanitizeQuestions(raw: RawQuestion[]): RawQuestion[] {
 
 /**
  * 调用 LLM 生成一批题目（10 题），带重试。
- * 第一次失败时第二次用简化 prompt 重试。
  */
 async function generateBatch(
   llm: ReturnType<typeof makeLLM>,
@@ -185,8 +184,23 @@ async function generateBatch(
   throw new Error(`${batchLabel} 生成失败: ${lastErr}`);
 }
 
-// POST /api/materials/:id/questions
-// body: { difficulty: 'easy' | 'medium' }
+function riskLabel(level: RiskLevel): string {
+  if (level === "high") return "🔴 重大风险";
+  if (level === "medium") return "🟠 较大风险";
+  return "🟡 一般风险";
+}
+
+/**
+ * POST /api/materials/:id/questions
+ * body: {
+ *   difficulty: 'easy' | 'medium',
+ *   batchIndex: 0 | 1 | 2 | 3,   // 前端循环调用，第 N 次
+ *   bankId?: number,             // batchIndex > 0 时必传
+ * }
+ *
+ * 单次请求只处理 1 批（10 题），耗时 ~30s，避免网关超时。
+ * 前端循环调用 4 次即可拼齐 40 题。
+ */
 export async function POST(req: NextRequest, { params }: Params) {
   const sess = await requireSession();
   if (!sess) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
@@ -195,6 +209,12 @@ export async function POST(req: NextRequest, { params }: Params) {
     const { id } = await params;
     const body = await req.json().catch(() => ({}));
     const difficulty: "easy" | "medium" = body?.difficulty === "medium" ? "medium" : "easy";
+    const batchIndex = typeof body?.batchIndex === "number" ? body.batchIndex : 0;
+    const bankIdInput = typeof body?.bankId === "number" ? body.bankId : null;
+
+    if (batchIndex < 0 || batchIndex >= TOTAL_BATCHES) {
+      return NextResponse.json({ error: `batchIndex 必须在 0-${TOTAL_BATCHES - 1} 范围` }, { status: 400 });
+    }
 
     const client = db();
     const { data: material, error: mErr } = await client
@@ -208,120 +228,131 @@ export async function POST(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: "材料尚未解析，请先执行解析" }, { status: 400 });
     }
 
-    const llm = makeLLM(req.headers);
-    const systemPrompt = difficulty === "easy" ? EASY_BATCH_PROMPT : MEDIUM_BATCH_PROMPT;
-    // 截断到 8000 字，避免 input 过长
-    const materialSlice = material.content_text.slice(0, 8000);
-    const baseUserPrompt = `培训材料《${material.title}》：\n${materialSlice}\n\n请依据以上内容出题，严格按 JSON 数组格式输出。`;
-
-    // ── 并行分批生成：4 批同时请求 × 10 题 = 最多 40 题 ──
-    // 用 Promise.allSettled 并行，总耗时 ≈ 单批耗时（约 15-30s），而非串行 60-120s
-    const batchPromises = Array.from({ length: NUM_BATCHES }, (_, i) => {
-      const batchLabel = `第 ${i + 1}/${NUM_BATCHES} 批`;
-      const batchPrompt = `${baseUserPrompt}\n\n【本次要求】这是第 ${i + 1} 批（共 ${NUM_BATCHES} 批），请生成与其它批次**不重复**的 10 道题。每批从材料不同章节/角度出题，避免重复。`;
-      return generateBatch(llm, systemPrompt, batchPrompt, batchLabel)
-        .then((qs) => ({ ok: true as const, qs, label: batchLabel }))
-        .catch((err) => ({ ok: false as const, err: err instanceof Error ? err.message : String(err), label: batchLabel }));
-    });
-
-    const batchSettled = await Promise.all(batchPromises);
-
-    const batchResults: RawQuestion[] = [];
-    const batchErrors: string[] = [];
-    for (const r of batchSettled) {
-      if (r.ok) {
-        batchResults.push(...r.qs);
-      } else {
-        batchErrors.push(`${r.label}: ${r.err}`);
-        console.error(`[questions] ${r.label} 最终失败:`, r.err);
+    // ── 第一次调用：先清理旧题库，创建新 bank（status='draft'，边生成边追加） ──
+    let bankId: number;
+    if (batchIndex === 0) {
+      // 删除同 difficulty 的旧题库
+      const { data: oldBanks } = await client
+        .from("question_banks")
+        .select("id")
+        .eq("material_id", id)
+        .eq("difficulty", difficulty);
+      if (oldBanks && oldBanks.length > 0) {
+        const ids = oldBanks.map((b) => b.id);
+        if (ids.length > 0) await client.from("question_banks").delete().in("id", ids);
       }
+
+      const bankTitle = `《${material.title}》培训题库（${difficulty === "easy" ? "简易" : "中等"}）`;
+      const { data: newBank, error: bErr } = await client
+        .from("question_banks")
+        .insert({
+          material_id: id,
+          title: bankTitle,
+          difficulty,
+          total_count: 0,
+          status: "draft",
+          reviewed_by: sess.id,
+        })
+        .select("id")
+        .single();
+      if (bErr || !newBank) {
+        return NextResponse.json({ error: bErr?.message || "创建题库失败" }, { status: 500 });
+      }
+      bankId = newBank.id;
+    } else {
+      if (!bankIdInput) {
+        return NextResponse.json({ error: "batchIndex > 0 时必须传 bankId" }, { status: 400 });
+      }
+      bankId = bankIdInput;
     }
 
-    // 即使部分批次失败，只要有题目就继续
-    if (batchResults.length === 0) {
-      const detail = batchErrors.join("; ");
+    // ── 生成本批 10 题 ──
+    const llm = makeLLM(req.headers);
+    const systemPrompt = difficulty === "easy" ? EASY_BATCH_PROMPT : MEDIUM_BATCH_PROMPT;
+    const materialSlice = material.content_text.slice(0, 8000);
+    const baseUserPrompt = `培训材料《${material.title}》：\n${materialSlice}\n\n请依据以上内容出题，严格按 JSON 数组格式输出。`;
+    const batchLabel = `第 ${batchIndex + 1}/${TOTAL_BATCHES} 批`;
+    const batchPrompt = `${baseUserPrompt}\n\n【本次要求】这是第 ${batchIndex + 1} 批（共 ${TOTAL_BATCHES} 批），请生成与其它批次**不重复**的 10 道题。请从材料的第 ${batchIndex + 1} 个不同角度或章节出题。`;
+
+    let batchQuestions: RawQuestion[];
+    try {
+      batchQuestions = await generateBatch(llm, systemPrompt, batchPrompt, batchLabel);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      // 本批失败，标记 bank 但不中断（前端可以继续下一批）
       return NextResponse.json(
-        { error: `题库生成失败，所有批次均未产出有效题目。${detail}` },
-        { status: 500 },
+        { bankId, batchIndex, totalBatches: TOTAL_BATCHES, generatedInBatch: 0, error: msg },
+        { status: 200 },
       );
     }
 
-    const cleaned = sanitizeQuestions(batchResults);
+    // ── 获取当前 bank 的已有最大 order_no，用于本批 order_no 起始 ──
+    const { data: existing } = await client
+      .from("questions")
+      .select("order_no")
+      .eq("bank_id", bankId)
+      .order("order_no", { ascending: false })
+      .limit(1);
+    const startOrder = existing && existing.length > 0 ? Number(existing[0].order_no) || 0 : 0;
 
-    // 覆盖同类型旧题库
-    const { data: oldBanks } = await client
-      .from("question_banks")
-      .select("id")
-      .eq("material_id", id)
-      .eq("difficulty", difficulty);
-    if (oldBanks && oldBanks.length > 0) {
-      const ids = oldBanks.map((b) => b.id);
-      if (ids.length > 0) await client.from("question_banks").delete().in("id", ids);
-    }
-
-    // 命名标准化：「材料名称」培训题库（简易/中等）
-    const bankTitle = `《${material.title}》培训题库（${difficulty === "easy" ? "简易" : "中等"}）`;
-
-    // 生成后自动发布
-    const { data: bank, error: bErr } = await client
-      .from("question_banks")
-      .insert({
-        material_id: id,
-        title: bankTitle,
-        difficulty,
-        total_count: cleaned.length,
-        status: "published",
-        reviewed_by: sess.id,
-      })
-      .select("id, title, difficulty, total_count, status, created_at")
-      .single();
-    if (bErr) return NextResponse.json({ error: bErr.message }, { status: 500 });
-
-    const rows = cleaned.map((q, idx) => {
+    const rows = batchQuestions.map((q, idx) => {
       const explanation = q.explanation
         ? q.risk_level && q.tag
           ? `【${riskLabel(q.risk_level)} · ${q.tag}】\n${q.explanation}`
           : q.explanation
         : null;
       return {
-        bank_id: bank.id,
+        bank_id: bankId,
         type: q.type,
         content: q.content,
         options: q.options,
         answer: q.answer,
         explanation,
-        order_no: idx + 1,
+        order_no: startOrder + idx + 1,
       };
     });
 
-    // 分批插入
-    const batchSize = 20;
-    for (let i = 0; i < rows.length; i += batchSize) {
-      const batch = rows.slice(i, i + batchSize);
-      const { error: qErr } = await client.from("questions").insert(batch);
-      if (qErr) return NextResponse.json({ error: qErr.message }, { status: 500 });
+    const { error: qErr } = await client.from("questions").insert(rows);
+    if (qErr) return NextResponse.json({ error: qErr.message }, { status: 500 });
+
+    // ── 统计当前 bank 累计题数，更新 total_count ──
+    const { count: totalCount } = await client
+      .from("questions")
+      .select("id", { count: "exact", head: true })
+      .eq("bank_id", bankId);
+    const total = typeof totalCount === "number" ? totalCount : startOrder + rows.length;
+
+    // ── 最后一批：标记 bank 为 published，返回完整 bank 数据 ──
+    const isLast = batchIndex === TOTAL_BATCHES - 1;
+    if (isLast) {
+      await client
+        .from("question_banks")
+        .update({ total_count: total, status: "published" })
+        .eq("id", bankId);
+    } else {
+      await client
+        .from("question_banks")
+        .update({ total_count: total })
+        .eq("id", bankId);
     }
 
-    // 统计风险分布
-    const distribution = {
-      high: cleaned.filter((q) => q.risk_level === "high").length,
-      medium: cleaned.filter((q) => q.risk_level === "medium").length,
-      low: cleaned.filter((q) => q.risk_level === "low").length,
-    };
+    const { data: bank } = await client
+      .from("question_banks")
+      .select("id, title, difficulty, total_count, status, created_at")
+      .eq("id", bankId)
+      .single();
 
-    const warning = batchErrors.length > 0
-      ? `（${batchErrors.length} 批次失败，实际生成 ${cleaned.length} 题）`
-      : "";
-
-    return NextResponse.json({ bank, count: cleaned.length, distribution, warning });
+    return NextResponse.json({
+      bank,
+      bankId,
+      batchIndex,
+      totalBatches: TOTAL_BATCHES,
+      generatedInBatch: rows.length,
+      totalGenerated: total,
+      done: isLast,
+    });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: msg }, { status: 500 });
   }
-}
-
-function riskLabel(level: RiskLevel): string {
-  if (level === "high") return "🔴 重大风险";
-  if (level === "medium") return "🟠 较大风险";
-  return "🟡 一般风险";
 }
