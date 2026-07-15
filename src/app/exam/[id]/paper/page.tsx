@@ -128,8 +128,8 @@ function PaperInner() {
 
   if (!pack) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-[#1E5AA8]" />
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-[#e6f4ff] to-white">
+        <Loader2 className="h-6 w-6 animate-spin text-[#1677ff]" />
       </div>
     );
   }
@@ -162,60 +162,64 @@ function PaperInner() {
     doSubmit(false);
   };
 
+  const progress = Math.round((answered / total) * 100)
+
   return (
-    <div className="mx-auto flex min-h-screen max-w-md flex-col">
+    <div className="mx-auto flex min-h-screen max-w-md flex-col bg-gradient-to-b from-[#f0f7ff] to-white">
       {/* 顶部倒计时 */}
-      <div
-        className={`sticky top-0 z-10 flex items-center justify-between border-b border-[#E4E7EC] bg-white px-4 py-3 ${
-          timerAlert ? "bg-[#FEE2E2]" : ""
-        }`}
-      >
-        <div className={`flex items-center gap-1 tabular-nums ${timerAlert ? "text-[#DC2626]" : "text-[#1E5AA8]"}`}>
-          <Clock className="h-4 w-4" />
-          <span className="font-mono text-base font-bold">
-            {String(min).padStart(2, "0")}:{String(sec).padStart(2, "0")}
+      <div className={`sticky top-0 z-10 border-b bg-white/95 backdrop-blur px-4 py-3 ${timerAlert ? "border-red-200" : "border-gray-100"}`}>
+        <div className="flex items-center justify-between">
+          <div className={`flex items-center gap-1 tabular-nums ${timerAlert ? "text-red-600" : "text-[#1677ff]"}`}>
+            <Clock className="h-4 w-4" />
+            <span className="font-mono text-lg font-bold">
+              {String(min).padStart(2, "0")}:{String(sec).padStart(2, "0")}
+            </span>
+            {timerAlert && <span className="text-xs ml-1 font-medium">仅剩</span>}
+          </div>
+          <span className="text-xs text-gray-500">
+            {current + 1} / {total} · 已答 {answered}
           </span>
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="sm" className="text-[#1677ff] font-medium">
+                题卡
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="right" className="w-72">
+              <SheetHeader>
+                <SheetTitle>答题卡</SheetTitle>
+              </SheetHeader>
+              <div className="mt-4 grid grid-cols-5 gap-2 px-4">
+                {pack.items.map((it, i) => {
+                  const has = (answers[it.question_id] || []).length > 0
+                  const isCur = i === current
+                  return (
+                    <button
+                      key={it.question_id}
+                      onClick={() => setCurrent(i)}
+                      className={`h-10 w-10 rounded-lg text-sm font-medium transition-all ${
+                        isCur
+                          ? "bg-gradient-to-br from-[#1677ff] to-[#0958d9] text-white shadow-md scale-105"
+                          : has
+                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                            : "border border-gray-200 bg-white text-gray-500"
+                      }`}
+                    >
+                      {i + 1}
+                    </button>
+                  )
+                })}
+              </div>
+            </SheetContent>
+          </Sheet>
         </div>
-        <span className="text-xs text-[#667085]">
-          {current + 1} / {total} · 已答 {answered}
-        </span>
-        <Sheet>
-          <SheetTrigger asChild>
-            <Button variant="ghost" size="sm" className="text-[#1E5AA8]">
-              题卡
-            </Button>
-          </SheetTrigger>
-          <SheetContent side="right" className="w-72">
-            <SheetHeader>
-              <SheetTitle>答题卡</SheetTitle>
-            </SheetHeader>
-            <div className="mt-4 grid grid-cols-5 gap-2 px-4">
-              {pack.items.map((it, i) => {
-                const has = (answers[it.question_id] || []).length > 0;
-                const isCur = i === current;
-                return (
-                  <button
-                    key={it.question_id}
-                    onClick={() => setCurrent(i)}
-                    className={`h-9 w-9 rounded-md text-sm font-medium ${
-                      isCur
-                        ? "border-2 border-[#1E5AA8] bg-[#1E5AA8] text-white"
-                        : has
-                          ? "bg-[#DCFCE7] text-[#166534]"
-                          : "border border-[#E4E7EC] bg-white text-[#667085]"
-                    }`}
-                  >
-                    {i + 1}
-                  </button>
-                );
-              })}
-            </div>
-          </SheetContent>
-        </Sheet>
+        <div className="mt-2 h-1 rounded-full bg-gray-100 overflow-hidden">
+          <div className="h-full bg-gradient-to-r from-[#1677ff] to-[#4096ff] transition-all duration-300" style={{ width: `${progress}%` }} />
+        </div>
       </div>
 
       {switchCount > 0 && (
-        <div className="flex items-center gap-1 bg-[#FEF3C7] px-4 py-1.5 text-xs text-[#B45309]">
+        <div className="flex items-center gap-1 bg-orange-50 border-b border-orange-100 px-4 py-1.5 text-xs text-orange-700">
           <AlertTriangle className="h-3 w-3" /> 已切屏 {switchCount} 次（超过 3 次将自动交卷）
         </div>
       )}
@@ -223,41 +227,42 @@ function PaperInner() {
       {/* 题目 */}
       <div className="flex-1 px-4 py-4">
         {item && (
-          <Card className="border-[#E4E7EC]">
-            <CardContent className="p-4">
+          <Card key={current} className="border-0 shadow-md rounded-2xl animate-in fade-in duration-200">
+            <CardContent className="p-5">
               <div className="mb-3 flex items-center gap-2">
-                <span className="rounded bg-[#1E5AA8] px-1.5 py-0.5 text-xs font-medium text-white">{TYPE_LABEL[item.type]}</span>
-                <span className="text-xs text-[#667085]">第 {current + 1} 题</span>
+                <span className="rounded-lg bg-gradient-to-r from-[#1677ff] to-[#4096ff] px-2 py-0.5 text-xs font-medium text-white shadow-sm">{TYPE_LABEL[item.type]}</span>
+                <span className="text-xs text-gray-500">第 {current + 1} 题 · 5 分</span>
               </div>
-              <p className="mb-4 text-base leading-relaxed text-[#1F2937]">{item.content}</p>
-              <div className="space-y-2">
+              <p className="mb-5 text-[15px] leading-relaxed text-gray-800 font-medium">{item.content}</p>
+              <div className="space-y-2.5">
                 {item.options.map((opt) => {
-                  const cur = answers[item.question_id] || [];
-                  const checked = cur.includes(opt.key);
+                  const cur = answers[item.question_id] || []
+                  const checked = cur.includes(opt.key)
                   return (
                     <button
                       key={opt.key}
                       onClick={() => toggle(opt.key)}
-                      className={`flex w-full items-start gap-3 rounded-md border p-3 text-left transition-colors ${
-                        checked ? "border-[#1E5AA8] bg-[#E0EDFF]" : "border-[#E4E7EC] bg-white"
+                      className={`flex w-full items-start gap-3 rounded-xl border-2 p-3.5 text-left transition-all ${
+                        checked ? "border-[#1677ff] bg-[#e6f4ff] shadow-sm" : "border-gray-100 bg-white hover:border-gray-200"
                       }`}
                     >
                       {item.type === "multiple" ? (
                         <Checkbox checked={checked} className="mt-0.5" />
                       ) : (
                         <span
-                          className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 ${
-                            checked ? "border-[#1E5AA8] bg-[#1E5AA8]" : "border-[#CBD5E1]"
+                          className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
+                            checked ? "border-[#1677ff] bg-[#1677ff]" : "border-gray-300"
                           }`}
                         >
-                          {checked && <span className="h-1.5 w-1.5 rounded-full bg-white" />}
+                          {checked && <span className="h-2 w-2 rounded-full bg-white" />}
                         </span>
                       )}
-                      <span className="text-sm text-[#1F2937]">
-                        <span className="font-semibold">{opt.key}.</span> {opt.text}
+                      <span className="text-sm text-gray-800 leading-relaxed">
+                        <span className={`font-semibold mr-1 ${checked ? "text-[#1677ff]" : "text-gray-500"}`}>{opt.key}.</span>
+                        {opt.text}
                       </span>
                     </button>
-                  );
+                  )
                 })}
               </div>
             </CardContent>
@@ -266,23 +271,23 @@ function PaperInner() {
       </div>
 
       {/* 底部导航 */}
-      <div className="sticky bottom-0 flex gap-2 border-t border-[#E4E7EC] bg-white px-4 py-3">
-        <Button variant="outline" onClick={() => setCurrent((c) => Math.max(0, c - 1))} disabled={current === 0} className="flex-1">
+      <div className="sticky bottom-0 flex gap-2 border-t border-gray-100 bg-white px-4 py-3">
+        <Button variant="outline" onClick={() => setCurrent((c) => Math.max(0, c - 1))} disabled={current === 0} className="flex-1 h-11 rounded-lg">
           上一题
         </Button>
         {current < total - 1 ? (
-          <Button onClick={() => setCurrent((c) => Math.min(total - 1, c + 1))} className="flex-1 bg-[#1E5AA8] hover:bg-[#154275]">
+          <Button onClick={() => setCurrent((c) => Math.min(total - 1, c + 1))} className="flex-1 h-11 rounded-lg bg-gradient-to-r from-[#1677ff] to-[#0958d9] hover:brightness-110">
             下一题
           </Button>
         ) : (
-          <Button onClick={onConfirmSubmit} disabled={submitting} className="flex-1 bg-[#12A150] hover:bg-[#0E7C3F]">
+          <Button onClick={onConfirmSubmit} disabled={submitting} className="flex-1 h-11 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 hover:brightness-110">
             {submitting ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}
             交卷
           </Button>
         )}
       </div>
     </div>
-  );
+  )
 }
 
 export default function PaperPage() {

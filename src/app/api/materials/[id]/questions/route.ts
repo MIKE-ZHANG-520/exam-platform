@@ -110,7 +110,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       if (ids.length > 0) await client.from("question_banks").delete().in("id", ids);
     }
 
-    const bankTitle = `${material.title}-${difficulty === "easy" ? "简易" : "中等"}题库`;
+    const bankTitle = `${material.title} · ${difficulty === "easy" ? "简易" : "中等"}题库`;
     const { data: bank, error: bErr } = await client
       .from("question_banks")
       .insert({
@@ -118,8 +118,9 @@ export async function POST(req: NextRequest, { params }: Params) {
         title: bankTitle,
         difficulty,
         total_count: cleaned.length,
+        status: "draft",
       })
-      .select("id, title, difficulty, total_count, created_at")
+      .select("id, title, difficulty, total_count, status, created_at")
       .single();
     if (bErr) return NextResponse.json({ error: bErr.message }, { status: 500 });
 

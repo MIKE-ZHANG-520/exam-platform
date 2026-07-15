@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { PageHeader } from "@/components/admin/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { apiGet, fmtDate, fmtDuration } from "@/lib/http";
 import { toast } from "sonner";
-import { Loader2, Eye } from "lucide-react";
+import { Loader2, Eye, Download, Search } from "lucide-react";
 
 interface Record {
   id: string;
@@ -98,29 +97,32 @@ function RecordsInner() {
   };
 
   return (
-    <>
-      <PageHeader
-        title="考试记录"
-        description="所有工人考试的详细记录"
-        right={
-          <Button variant="outline" onClick={exportCsv} disabled={items.length === 0}>
-            导出 CSV
-          </Button>
-        }
-      />
+    <div className="space-y-6">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="text-[22px] font-semibold text-gray-900">考试记录</h1>
+          <p className="text-sm text-gray-500 mt-0.5">工人考试的所有详细记录，可搜索导出</p>
+        </div>
+        <Button variant="outline" onClick={exportCsv} disabled={items.length === 0} className="hover:border-[#1677ff] hover:text-[#1677ff]">
+          <Download className="mr-1 h-4 w-4" /> 导出 CSV
+        </Button>
+      </div>
 
-      <Card className="mb-4 border-[#E4E7EC]">
-        <CardContent className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="brand-card rounded-xl p-4">
+        <div className="flex items-center gap-2 text-sm text-gray-500 mb-3">
+          <Search className="w-4 h-4" /> 筛选条件
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div>
-            <Label className="mb-1 block text-xs">姓名</Label>
+            <Label className="mb-1 block text-xs text-gray-500">姓名</Label>
             <Input value={filter.name} onChange={(e) => setFilter({ ...filter, name: e.target.value })} placeholder="姓名关键字" />
           </div>
           <div>
-            <Label className="mb-1 block text-xs">班组</Label>
+            <Label className="mb-1 block text-xs text-gray-500">班组</Label>
             <Input value={filter.team} onChange={(e) => setFilter({ ...filter, team: e.target.value })} placeholder="精确匹配" />
           </div>
           <div>
-            <Label className="mb-1 block text-xs">试卷</Label>
+            <Label className="mb-1 block text-xs text-gray-500">试卷</Label>
             <Select value={filter.exam_id || "__all__"} onValueChange={(v) => setFilter({ ...filter, exam_id: v === "__all__" ? "" : v })}>
               <SelectTrigger>
                 <SelectValue placeholder="全部试卷" />
@@ -136,7 +138,7 @@ function RecordsInner() {
             </Select>
           </div>
           <div>
-            <Label className="mb-1 block text-xs">结果</Label>
+            <Label className="mb-1 block text-xs text-gray-500">结果</Label>
             <Select value={filter.is_pass} onValueChange={(v) => setFilter({ ...filter, is_pass: v as typeof filter.is_pass })}>
               <SelectTrigger>
                 <SelectValue />
@@ -148,21 +150,28 @@ function RecordsInner() {
               </SelectContent>
             </Select>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
-      <Card className="border-[#E4E7EC]">
+      <Card className="brand-card border-0">
         <CardContent className="p-0">
           {loading ? (
-            <div className="flex h-40 items-center justify-center text-sm text-[#667085]">
-              <Loader2 className="mr-2 h-5 w-5 animate-spin" /> 加载中...
+            <div className="p-6 space-y-2">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="skeleton h-10 rounded" />
+              ))}
             </div>
           ) : items.length === 0 ? (
-            <div className="py-16 text-center text-sm text-[#667085]">暂无考试记录</div>
+            <div className="py-16 flex flex-col items-center">
+              <div className="w-16 h-16 rounded-full bg-gray-50 flex items-center justify-center mb-3">
+                <Eye className="w-7 h-7 text-gray-400" />
+              </div>
+              <p className="text-sm text-gray-500">暂无考试记录</p>
+            </div>
           ) : (
             <Table>
               <TableHeader>
-                <TableRow>
+                <TableRow className="bg-gray-50/60">
                   <TableHead>姓名</TableHead>
                   <TableHead>班组</TableHead>
                   <TableHead>试卷</TableHead>
@@ -175,27 +184,27 @@ function RecordsInner() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {items.map((r) => (
-                  <TableRow key={r.id}>
-                    <TableCell className="font-medium">{r.candidate_name}</TableCell>
-                    <TableCell>{r.team || "-"}</TableCell>
-                    <TableCell>{r.exam_title || "-"}</TableCell>
-                    <TableCell className="text-right tabular-nums font-semibold">{r.score ?? "-"}</TableCell>
+                {items.map((r, i) => (
+                  <TableRow key={r.id} className={i % 2 === 1 ? "bg-gray-50/30" : ""}>
+                    <TableCell className="font-medium text-gray-900">{r.candidate_name}</TableCell>
+                    <TableCell className="text-gray-600">{r.team || "-"}</TableCell>
+                    <TableCell className="text-gray-600">{r.exam_title || "-"}</TableCell>
+                    <TableCell className="text-right tabular-nums font-semibold text-gray-900">{r.score ?? "-"}</TableCell>
                     <TableCell>
                       {r.is_pass === null ? (
-                        <Badge className="bg-[#FEF3C7] text-[#B45309]">未完成</Badge>
+                        <Badge className="bg-orange-50 text-orange-700 border border-orange-200">未完成</Badge>
                       ) : r.is_pass ? (
-                        <Badge className="bg-[#DCFCE7] text-[#166534]">通过</Badge>
+                        <Badge className="bg-emerald-50 text-emerald-700 border border-emerald-200">通过</Badge>
                       ) : (
-                        <Badge className="bg-[#FEE2E2] text-[#DC2626]">未通过</Badge>
+                        <Badge className="bg-red-50 text-red-700 border border-red-200">未通过</Badge>
                       )}
                     </TableCell>
-                    <TableCell>第 {r.attempt_no} 次</TableCell>
-                    <TableCell>{fmtDuration(r.duration_sec)}</TableCell>
-                    <TableCell>{fmtDate(r.created_at)}</TableCell>
+                    <TableCell className="text-gray-600">第 {r.attempt_no} 次</TableCell>
+                    <TableCell className="text-gray-600">{fmtDuration(r.duration_sec)}</TableCell>
+                    <TableCell className="text-gray-500">{fmtDate(r.created_at)}</TableCell>
                     <TableCell className="text-right">
                       <Link href={`/admin/records/${r.id}`}>
-                        <Button variant="ghost" size="sm">
+                        <Button variant="ghost" size="sm" className="hover:text-[#1677ff]">
                           <Eye className="mr-1 h-4 w-4" /> 详情
                         </Button>
                       </Link>
@@ -207,13 +216,13 @@ function RecordsInner() {
           )}
         </CardContent>
       </Card>
-    </>
+    </div>
   );
 }
 
 export default function RecordsPage() {
   return (
-    <Suspense fallback={<div className="p-8 text-sm text-[#667085]">加载中...</div>}>
+    <Suspense fallback={<div className="p-8 text-sm text-gray-500"><Loader2 className="inline mr-2 h-4 w-4 animate-spin" />加载中...</div>}>
       <RecordsInner />
     </Suspense>
   );

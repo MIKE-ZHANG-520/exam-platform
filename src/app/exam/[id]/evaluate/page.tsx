@@ -56,14 +56,15 @@ function EvalInner() {
 
   if (done) {
     return (
-      <div className="mx-auto flex min-h-screen max-w-md flex-col items-center justify-center px-4">
-        <CheckCircle2 className="h-16 w-16 text-[#12A150]" />
-        <p className="mt-3 text-xl font-semibold text-[#166534]">感谢您的评价</p>
-        <p className="mt-1 text-sm text-[#667085]">您的反馈将帮助我们改进培训</p>
+      <div className="mx-auto flex min-h-screen max-w-md flex-col items-center justify-center px-4 bg-gradient-to-b from-emerald-50 via-white to-white">
+        <div className="w-20 h-20 rounded-full bg-emerald-100 flex items-center justify-center">
+          <CheckCircle2 className="h-11 w-11 text-emerald-600" />
+        </div>
+        <p className="mt-4 text-xl font-semibold text-gray-800">感谢你的反馈！</p>
+        <p className="mt-1 text-sm text-gray-500">我们会持续改进培训质量</p>
         <Button
           onClick={() => router.replace(`/exam/${params.id}`)}
-          variant="outline"
-          className="mt-6"
+          className="mt-6 h-11 rounded-lg bg-gradient-to-r from-[#1677ff] to-[#0958d9] hover:brightness-110 px-8"
         >
           返回首页
         </Button>
@@ -72,24 +73,28 @@ function EvalInner() {
   }
 
   return (
-    <div className="mx-auto max-w-md px-4 pb-10 pt-6">
-      <h1 className="text-xl font-semibold text-[#1F2937]">讲师评价</h1>
-      <p className="mt-1 mb-4 text-xs text-[#667085]">您的评价是对讲师最好的反馈</p>
+    <div className="min-h-screen bg-gradient-to-b from-[#e6f4ff] via-[#f0f7ff] to-white pb-10">
+      <div className="bg-gradient-to-br from-[#1677ff] to-[#0958d9] text-white pt-8 pb-10 px-5">
+        <div className="mx-auto max-w-md">
+          <h1 className="text-2xl font-bold">给培训师打个分</h1>
+          <p className="mt-1 text-sm text-white/90">你的评价是对讲师最好的反馈</p>
+        </div>
+      </div>
 
-      <div className="space-y-3">
+      <div className="mx-auto max-w-md px-4 -mt-4 space-y-3">
         {DIMS.map((dim) => (
-          <Card key={dim.key} className="border-[#E4E7EC]">
+          <Card key={dim.key} className="border-0 shadow-sm rounded-xl">
             <CardContent className="p-4">
-              <div className="mb-2 flex items-center justify-between">
+              <div className="mb-2.5 flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-[#1F2937]">{dim.label}</p>
-                  <p className="text-xs text-[#667085]">{dim.desc}</p>
+                  <p className="text-sm font-semibold text-gray-800">{dim.label}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{dim.desc}</p>
                 </div>
-                <span className="text-xs tabular-nums text-[#667085]">
+                <span className="text-xs tabular-nums text-gray-400">
                   {scores[dim.key] > 0 ? `${scores[dim.key]} 星` : "未评"}
                 </span>
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-1.5">
                 {[1, 2, 3, 4, 5].map((n) => {
                   const active = n <= scores[dim.key];
                   return (
@@ -97,10 +102,10 @@ function EvalInner() {
                       key={n}
                       type="button"
                       onClick={() => setScores({ ...scores, [dim.key]: n })}
-                      className="rounded-full p-1 transition-transform active:scale-90"
+                      className="rounded-full p-1 transition-transform active:scale-90 hover:scale-105"
                     >
                       <Star
-                        className={`h-7 w-7 ${active ? "fill-[#F26E22] text-[#F26E22]" : "text-[#CBD5E1]"}`}
+                        className={`h-8 w-8 transition-colors ${active ? "fill-amber-400 text-amber-400" : "text-gray-200"}`}
                       />
                     </button>
                   );
@@ -109,27 +114,30 @@ function EvalInner() {
             </CardContent>
           </Card>
         ))}
-      </div>
 
-      <div className="mt-4">
-        <p className="mb-1.5 text-sm font-medium text-[#1F2937]">建议与意见（可选）</p>
-        <Textarea
-          value={comment}
-          onChange={(e) => setComment(e.target.value)}
-          placeholder="您对本次培训有什么建议？"
-          rows={4}
-          maxLength={500}
-        />
-      </div>
+        <Card className="border-0 shadow-sm rounded-xl">
+          <CardContent className="p-4">
+            <p className="mb-2 text-sm font-semibold text-gray-800">建议与意见（可选）</p>
+            <Textarea
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              placeholder="你对本次培训有什么建议？"
+              rows={4}
+              maxLength={500}
+              className="rounded-lg resize-none"
+            />
+          </CardContent>
+        </Card>
 
-      <Button
-        onClick={onSubmit}
-        disabled={submitting || !canSubmit}
-        className="mt-6 h-12 w-full bg-[#1E5AA8] text-base hover:bg-[#154275]"
-      >
-        {submitting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : null}
-        提交评价
-      </Button>
+        <Button
+          onClick={onSubmit}
+          disabled={submitting || !canSubmit}
+          className="mt-2 h-12 w-full rounded-xl text-base bg-gradient-to-r from-[#1677ff] to-[#0958d9] hover:brightness-110 shadow-lg shadow-blue-200"
+        >
+          {submitting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : null}
+          提交评价
+        </Button>
+      </div>
     </div>
   );
 }

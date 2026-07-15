@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getStorage } from "@/lib/storage";
+import { getSession } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
@@ -17,14 +18,25 @@ function sanitizeFileName(name: string): string {
   return name.replace(/[^A-Za-z0-9._-]/g, "_");
 }
 
+function deriveTitleFromFileName(fileName: string): string {
+  const lastDot = fileName.lastIndexOf(".");
+  return lastDot > 0 ? fileName.slice(0, lastDot) : fileName;
+}
+
 // GET /api/materials 列表
 export async function GET() {
+  const session = await getSession();
   const client = db();
-  const { data, error } = await client
+  let query = client
     .from("materials")
-    .select("id, title, file_name, file_type, file_size, status, error_message, created_at")
+    .select("id, title, file_name, file_type, file_size, status, error_message, owner_id, created_at")
     .order("created_at", { ascending: false })
     .limit(200);
+  // 普通用户只能看自己创建的材料
+  if (session && session.role === "user") {
+    query = query.eq("owner_id", session.id);
+  }
+  const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ items: data ?? [] });
 }
@@ -32,6 +44,7 @@ export async function GET() {
 // POST /api/materials 上传
 export async function POST(request: NextRequest) {
   try {
+    const session = await getSession();
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
     const title = ((formData.get("title") as string | null) || "").trim();
@@ -58,18 +71,22 @@ export async function POST(request: NextRequest) {
       contentType: file.type || "application/octet-stream",
     });
 
+    // 标题优先用用户填的，否则用文件名去掉扩展名
+    const finalTitle = title || deriveTitleFromFileName(file.name);
+
     const client = db();
     const { data, error } = await client
       .from("materials")
       .insert({
-        title: title || file.name,
+        title: finalTitle,
         file_name: file.name,
         file_type: fileType,
         file_key: key,
         file_size: buffer.byteLength,
         status: "uploaded",
+        owner_id: session?.id ?? null,
       })
-      .select("id, title, file_name, file_type, file_size, status, created_at")
+      .select("id, title, file_name, file_type, file_size, status, owner_id, created_at")
       .single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });

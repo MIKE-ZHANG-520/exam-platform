@@ -9,20 +9,27 @@ interface Params {
   params: Promise<{ id: string }>;
 }
 
-const WORKER_PROMPT = `你是安全培训领域的专家，需要为一线工人编写培训提纲。要求：
-1. 口语化标题（例如"电动工具三查"、"高处作业穿这三样"），避免书面语；
-2. 每条要点用 ① ② ③ 编号，简短好记；
-3. 遇到危险场景要具体化，例如"雨天在户外用没漏电保护的电钻会被电到"；
-4. 在结尾附一段"顺口溜"或"记忆口诀"帮助工人记住；
-5. 关键危险动作用【重点】标注；
-6. 输出使用 Markdown，段落之间空一行。`;
+const WORKER_PROMPT = `你是一线工人安全培训领域的资深专家。请严格基于给出的原始材料，为工人编写一份可直接讲的培训提纲。要求：
+1. 至少输出 4-6 个二级章节，每个章节用 "## 章节标题" 开头，标题要口语化（如 "上岗前查这三样"、"高处作业记住三系两不能"）。
+2. 每个章节内部按类型输出条目（每条独占一行）：
+   - "✅ 正确做法：xxx"（推荐做法）
+   - "⚠️ 注意事项：xxx"（容易忽略的细节）
+   - "🔴 禁止行为：xxx"（严禁触碰的红线）
+   - "1️⃣ / 2️⃣ ..." 或 "① ② ③" 编号（步骤类）
+   - "**重点**：xxx"（当条内容需要红色高亮时用 **加粗** 包裹关键短语）
+3. 每个章节末尾附一段口诀，格式：
+   > 💡 口诀：xxxxxxx
+4. 全篇不要出现 Markdown 表格，也不要写代码块。
+5. 内容必须来自原始材料，禁止编造与材料无关的规范。`;
 
-const TRAINER_PROMPT = `你是培训师授课手册作者，需要为讲师提供备课提纲。要求：
-1. 每个知识点列出核心要点（专业术语可保留）；
-2. 标出常见误区（工人容易搞错的地方）；
-3. 给出互动设问建议（3-5 个开放问题，帮助讲师课堂点名互动）；
-4. 每个大节标出建议时间分配（分钟）；
-5. 输出使用 Markdown，先给出总时长建议，再分节展开。`;
+const TRAINER_PROMPT = `你是培训师授课手册作者，请为讲师输出可直接照讲的备课提纲。要求：
+1. 使用 "## 章节标题" 划分至少 4 个章节，每章节内部按下面固定的四类结构编写（每类可有多条）：
+   - "🎯 核心知识点：xxx"
+   - "⚠️ 常见误区：xxx"
+   - "💬 互动设问：xxx？"
+   - "⏱️ 时间分配：xx 分钟 —— 说明"
+2. 全篇开头先给一句总时长建议，例如 "**总时长建议：45 分钟**"。
+3. 内容严格贴合原始材料，禁止空谈。禁止输出代码块 / 表格。`;
 
 // POST /api/materials/:id/outline 生成培训提纲
 // body: { audience: 'worker' | 'trainer' }
@@ -61,10 +68,11 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     // 覆盖同 audience 的旧提纲
     await client.from("outlines").delete().eq("material_id", id).eq("audience", audience);
+    const outlineTitle = `${material.title} · ${audience === "worker" ? "工人版" : "培训师版"}提纲`;
     const { data: inserted, error: iErr } = await client
       .from("outlines")
-      .insert({ material_id: id, audience, content_md })
-      .select("id, audience, content_md, created_at")
+      .insert({ material_id: id, audience, content_md, title: outlineTitle, status: "draft" })
+      .select("id, audience, title, content_md, status, created_at")
       .single();
     if (iErr) return NextResponse.json({ error: iErr.message }, { status: 500 });
 

@@ -7,6 +7,27 @@ export const healthCheck = pgTable("health_check", {
 	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow(),
 });
 
+// 用户表（登录鉴权）
+export const users = pgTable(
+	"users",
+	{
+		id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+		username: varchar("username", { length: 60 }).notNull().unique(),
+		password_hash: varchar("password_hash", { length: 255 }).notNull(),
+		role: varchar("role", { length: 20 }).notNull().default("user"), // admin / user
+		real_name: varchar("real_name", { length: 60 }).notNull(),
+		department: varchar("department", { length: 100 }),
+		avatar_color: varchar("avatar_color", { length: 20 }),
+		active: boolean("active").notNull().default(true),
+		last_login_at: timestamp("last_login_at", { withTimezone: true }),
+		created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+	},
+	(table) => [
+		index("users_username_idx").on(table.username),
+		index("users_role_idx").on(table.role),
+	]
+);
+
 // 培训材料表
 export const materials = pgTable(
 	"materials",
@@ -21,6 +42,7 @@ export const materials = pgTable(
 		status: varchar("status", { length: 20 }).notNull().default("uploaded"),
 		// uploaded / parsing / parsed / generating / ready / failed
 		error_message: text("error_message"),
+		owner_id: varchar("owner_id", { length: 36 }),                // 创建人（用于普通管理员的数据隔离）
 		created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 		updated_at: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 	},
@@ -37,8 +59,12 @@ export const outlines = pgTable(
 		id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
 		material_id: varchar("material_id", { length: 36 }).notNull().references(() => materials.id, { onDelete: "cascade" }),
 		audience: varchar("audience", { length: 20 }).notNull(), // worker / trainer
+		title: varchar("title", { length: 255 }),
 		content_md: text("content_md").notNull(),                // markdown 提纲全文
+		status: varchar("status", { length: 20 }).notNull().default("draft"), // draft / published
+		published_at: timestamp("published_at", { withTimezone: true }),
 		created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+		updated_at: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 	},
 	(table) => [
 		index("outlines_material_id_idx").on(table.material_id),
@@ -51,14 +77,18 @@ export const question_banks = pgTable(
 	"question_banks",
 	{
 		id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
-		material_id: varchar("material_id", { length: 36 }).notNull().references(() => materials.id, { onDelete: "cascade" }),
+		material_id: varchar("material_id", { length: 36 }),
 		title: varchar("title", { length: 255 }).notNull(),
 		difficulty: varchar("difficulty", { length: 20 }).notNull(), // easy / medium
 		total_count: integer("total_count").notNull().default(0),
+		status: varchar("status", { length: 20 }).notNull().default("draft"), // draft / published
+		owner_id: varchar("owner_id", { length: 36 }),
+		published_at: timestamp("published_at", { withTimezone: true }),
 		created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 	},
 	(table) => [
 		index("question_banks_material_id_idx").on(table.material_id),
+		index("question_banks_status_idx").on(table.status),
 	]
 );
 

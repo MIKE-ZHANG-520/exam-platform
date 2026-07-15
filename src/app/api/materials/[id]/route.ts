@@ -23,12 +23,12 @@ export async function GET(_req: NextRequest, { params }: Params) {
   const [outlinesRes, banksRes] = await Promise.all([
     client
       .from("outlines")
-      .select("id, audience, content_md, created_at")
+      .select("id, audience, content_md, status, created_at")
       .eq("material_id", id)
       .order("created_at", { ascending: false }),
     client
       .from("question_banks")
-      .select("id, title, difficulty, total_count, created_at")
+      .select("id, title, difficulty, total_count, status, created_at")
       .eq("material_id", id)
       .order("created_at", { ascending: false }),
   ]);

@@ -1,191 +1,340 @@
-"use client";
+"use client"
 
-import { useEffect, useState } from "react";
-import { PageHeader } from "@/components/admin/page-header";
-import { apiGet, fmtDate } from "@/lib/http";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { AlertCircle, CheckCircle2, ClipboardCheck, TrendingUp, Users, XCircle, Loader2 } from "lucide-react";
-import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, Legend } from "recharts";
+import { useEffect, useState } from "react"
+import Link from "next/link"
+import {
+	Users,
+	UserCheck,
+	Percent,
+	TrendingUp,
+	AlertTriangle,
+	Award,
+	ArrowRight,
+	Trophy,
+} from "lucide-react"
+import {
+	ResponsiveContainer,
+	AreaChart,
+	Area,
+	Tooltip,
+	CartesianGrid,
+	XAxis,
+	YAxis,
+	BarChart,
+	Bar,
+	LineChart,
+	Line,
+	Cell,
+} from "recharts"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Progress } from "@/components/ui/progress"
+import { Badge } from "@/components/ui/badge"
 
-interface DashboardData {
-  kpi: {
-    total_records: number;
-    first_attempts: number;
-    passed: number;
-    failed: number;
-    pass_rate: number;
-    avg_score: number;
-    pending_retake: number;
-  };
-  team_stats: Array<{ team: string; participated: number; passed: number; pass_rate: number }>;
-  trend: Array<{ date: string; participated: number; passed: number }>;
-  score_buckets: Array<{ name: string; count: number }>;
-  retake_list: Array<{ id: string; candidate_name: string; phone: string | null; team: string | null; score: number | null; attempt_no: number; created_at: string }>;
+interface Kpi {
+	total_records: number
+	first_attempts: number
+	passed: number
+	failed: number
+	pass_rate: number
+	avg_score: number
+	pending_retake: number
 }
 
+interface Trend {
+	date: string
+	participated: number
+	passed: number
+}
+
+interface Bucket {
+	name: string
+	count: number
+}
+
+interface TeamStat {
+	team: string
+	participated: number
+	passed: number
+	pass_rate: number
+}
+
+interface Retake {
+	id: string
+	candidate_name: string
+	phone: string
+	team: string
+	score: number
+	attempt_no: number
+}
+
+interface DashData {
+	kpi: Kpi
+	trend: Trend[]
+	score_buckets: Bucket[]
+	team_stats: TeamStat[]
+	retake_list: Retake[]
+}
+
+const KPI_THEMES = [
+	{ bg: "bg-[#eff6ff]", text: "text-[#1677ff]", ring: "ring-[#1677ff]/20" },
+	{ bg: "bg-[#ecfdf5]", text: "text-[#10b981]", ring: "ring-[#10b981]/20" },
+	{ bg: "bg-[#fff7ed]", text: "text-[#f97316]", ring: "ring-[#f97316]/20" },
+	{ bg: "bg-[#fef2f2]", text: "text-[#ef4444]", ring: "ring-[#ef4444]/20" },
+	{ bg: "bg-[#f5f3ff]", text: "text-[#8b5cf6]", ring: "ring-[#8b5cf6]/20" },
+	{ bg: "bg-[#fefce8]", text: "text-[#d97706]", ring: "ring-[#d97706]/20" },
+]
+
+function KpiCard({
+	icon: Icon,
+	label,
+	value,
+	suffix,
+	themeIdx,
+	hint,
+}: {
+	icon: React.ComponentType<{ className?: string }>
+	label: string
+	value: string | number
+	suffix?: string
+	themeIdx: number
+	hint?: string
+}) {
+	const t = KPI_THEMES[themeIdx % KPI_THEMES.length]
+	return (
+		<div className="brand-card rounded-xl p-5 flex items-start gap-4 transition-all hover:-translate-y-0.5">
+			<div className={`w-11 h-11 rounded-xl flex items-center justify-center ring-4 ${t.bg} ${t.ring}`}>
+				<Icon className={`w-5 h-5 ${t.text}`} />
+			</div>
+			<div className="flex-1 min-w-0">
+				<div className="text-[13px] text-gray-500">{label}</div>
+				<div className="mt-1 flex items-baseline gap-1">
+					<span className="text-[28px] font-semibold text-gray-900 tabular-nums leading-none">{value}</span>
+					{suffix && <span className="text-sm text-gray-400 ml-1">{suffix}</span>}
+				</div>
+				{hint && <div className="text-[11px] text-gray-400 mt-1">{hint}</div>}
+			</div>
+		</div>
+	)
+}
+
+const BUCKET_COLORS = ["#ef4444", "#f97316", "#3b82f6", "#10b981"]
+
 export default function DashboardPage() {
-  const [data, setData] = useState<DashboardData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+	const [data, setData] = useState<DashData | null>(null)
 
-  useEffect(() => {
-    setLoading(true);
-    apiGet<DashboardData>("/api/dashboard")
-      .then((d) => setData(d))
-      .catch((e: Error) => setError(e.message))
-      .finally(() => setLoading(false));
-  }, []);
+	useEffect(() => {
+		fetch("/api/dashboard")
+			.then((r) => r.json())
+			.then(setData)
+			.catch(() => setData(null))
+	}, [])
 
-  if (loading) {
-    return (
-      <div className="flex h-64 items-center justify-center text-sm text-[#667085]">
-        <Loader2 className="mr-2 h-5 w-5 animate-spin" /> 加载中...
-      </div>
-    );
-  }
-  if (error) return <div className="text-sm text-red-600">加载失败：{error}</div>;
-  if (!data) return null;
+	if (!data) {
+		return (
+			<div className="space-y-6">
+				<div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+					{Array.from({ length: 4 }).map((_, i) => (
+						<div key={i} className="skeleton h-24 rounded-xl" />
+					))}
+				</div>
+				<div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+					<div className="skeleton h-72 rounded-xl lg:col-span-2" />
+					<div className="skeleton h-72 rounded-xl" />
+				</div>
+			</div>
+		)
+	}
 
-  const kpiCards = [
-    { title: "考试记录总数", value: data.kpi.total_records, icon: Users, color: "#1E5AA8" },
-    { title: "参考人数(首次)", value: data.kpi.first_attempts, icon: ClipboardCheck, color: "#1E5AA8" },
-    { title: "通过人数", value: data.kpi.passed, icon: CheckCircle2, color: "#12A150" },
-    { title: "未通过人数", value: data.kpi.failed, icon: XCircle, color: "#DC2626" },
-    { title: "通过率", value: `${data.kpi.pass_rate}%`, icon: TrendingUp, color: "#12A150" },
-    { title: "平均分", value: data.kpi.avg_score, icon: TrendingUp, color: "#1E5AA8" },
-    { title: "待补考人数", value: data.kpi.pending_retake, icon: AlertCircle, color: "#F26E22" },
-  ];
+	const k = data.kpi
+	const teamStatsSorted = [...data.team_stats].sort((a, b) => b.pass_rate - a.pass_rate)
 
-  return (
-    <>
-      <PageHeader title="数据看板" description="培训考试整体运行状况" />
+	return (
+		<div className="space-y-6">
+			<div>
+				<h1 className="text-[22px] font-semibold text-gray-900">数据看板</h1>
+				<p className="text-sm text-gray-500 mt-0.5">培训考试情况全景概览</p>
+			</div>
 
-      {/* KPI 卡片 */}
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
-        {kpiCards.map((c) => {
-          const Icon = c.icon;
-          return (
-            <Card key={c.title} className="border-[#E4E7EC]">
-              <CardContent className="flex items-center justify-between p-5">
-                <div>
-                  <p className="text-xs text-[#667085]">{c.title}</p>
-                  <p className="mt-2 text-3xl font-bold tabular-nums" style={{ color: c.color }}>
-                    {c.value}
-                  </p>
-                </div>
-                <div className="flex h-11 w-11 items-center justify-center rounded-md" style={{ backgroundColor: `${c.color}14` }}>
-                  <Icon className="h-5 w-5" style={{ color: c.color }} />
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+			{/* KPI 卡片 */}
+			<div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+				<KpiCard icon={Users} label="参考总人次" value={k.total_records} themeIdx={0} hint={`首考 ${k.first_attempts} 次`} />
+				<KpiCard icon={UserCheck} label="通过人次" value={k.passed} themeIdx={1} hint={`未通过 ${k.failed} 次`} />
+				<KpiCard icon={Percent} label="及格率" value={k.pass_rate.toFixed(1)} suffix="%" themeIdx={2} />
+				<KpiCard icon={Award} label="平均分" value={k.avg_score.toFixed(1)} themeIdx={4} />
+			</div>
 
-      {/* 趋势图 + 分数段 */}
-      <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <Card className="border-[#E4E7EC] lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="text-base font-semibold">近 7 天参考趋势</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-64 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={data.trend} margin={{ top: 4, right: 16, left: -8, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E4E7EC" />
-                  <XAxis dataKey="date" tick={{ fontSize: 12, fill: "#667085" }} />
-                  <YAxis tick={{ fontSize: 12, fill: "#667085" }} allowDecimals={false} />
-                  <Tooltip contentStyle={{ borderColor: "#E4E7EC", fontSize: 12 }} />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <Line name="参考" type="monotone" dataKey="participated" stroke="#1E5AA8" strokeWidth={2} dot={{ r: 3 }} />
-                  <Line name="通过" type="monotone" dataKey="passed" stroke="#12A150" strokeWidth={2} dot={{ r: 3 }} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
+			<div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+				<KpiCard icon={AlertTriangle} label="待补考" value={k.pending_retake} themeIdx={3} hint="首考未过" />
+				<KpiCard icon={TrendingUp} label="近 7 日参考" value={data.trend.reduce((s, t) => s + t.participated, 0)} themeIdx={0} />
+				<KpiCard icon={Trophy} label="满分人次" value={data.score_buckets[3]?.count || 0} themeIdx={1} suffix="人" />
+				<KpiCard icon={Users} label="参考班组" value={data.team_stats.length} themeIdx={4} suffix="个" />
+			</div>
 
-        <Card className="border-[#E4E7EC]">
-          <CardHeader>
-            <CardTitle className="text-base font-semibold">分数段分布</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-64 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={data.score_buckets} margin={{ top: 4, right: 12, left: -12, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E4E7EC" />
-                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#667085" }} />
-                  <YAxis tick={{ fontSize: 12, fill: "#667085" }} allowDecimals={false} />
-                  <Tooltip contentStyle={{ borderColor: "#E4E7EC", fontSize: 12 }} />
-                  <Bar dataKey="count" fill="#1E5AA8" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+			{/* 趋势图 + 分数段分布 */}
+			<div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+				<Card className="brand-card lg:col-span-2 border-0">
+					<CardHeader className="flex flex-row items-center justify-between pb-2">
+						<CardTitle className="text-base">近 7 日趋势</CardTitle>
+						<div className="flex gap-3 text-xs text-gray-500">
+							<span className="flex items-center gap-1.5"><i className="inline-block w-2 h-2 rounded-full bg-[#1677ff]" />参考人次</span>
+							<span className="flex items-center gap-1.5"><i className="inline-block w-2 h-2 rounded-full bg-[#10b981]" />通过人次</span>
+						</div>
+					</CardHeader>
+					<CardContent className="pt-2">
+						<div className="h-64">
+							<ResponsiveContainer width="100%" height="100%">
+								<AreaChart data={data.trend} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+									<defs>
+										<linearGradient id="c1" x1="0" x2="0" y1="0" y2="1">
+											<stop offset="0%" stopColor="#1677ff" stopOpacity={0.35} />
+											<stop offset="100%" stopColor="#1677ff" stopOpacity={0} />
+										</linearGradient>
+										<linearGradient id="c2" x1="0" x2="0" y1="0" y2="1">
+											<stop offset="0%" stopColor="#10b981" stopOpacity={0.3} />
+											<stop offset="100%" stopColor="#10b981" stopOpacity={0} />
+										</linearGradient>
+									</defs>
+									<CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" vertical={false} />
+									<XAxis dataKey="date" tickFormatter={(v: string) => v.slice(5)} fontSize={12} stroke="#9ca3af" />
+									<YAxis fontSize={12} stroke="#9ca3af" allowDecimals={false} />
+									<Tooltip contentStyle={{ borderRadius: 8, borderColor: "#e5e7eb", fontSize: 12 }} />
+									<Area type="monotone" dataKey="participated" stroke="#1677ff" strokeWidth={2} fill="url(#c1)" />
+									<Area type="monotone" dataKey="passed" stroke="#10b981" strokeWidth={2} fill="url(#c2)" />
+								</AreaChart>
+							</ResponsiveContainer>
+						</div>
+					</CardContent>
+				</Card>
 
-      {/* 班组完成率 + 待补考清单 */}
-      <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Card className="border-[#E4E7EC]">
-          <CardHeader>
-            <CardTitle className="text-base font-semibold">班组完成率排行</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {data.team_stats.length === 0 ? (
-              <p className="text-sm text-[#667085]">暂无数据</p>
-            ) : (
-              <div className="space-y-3">
-                {data.team_stats.map((t) => (
-                  <div key={t.team}>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-[#1F2937]">{t.team}</span>
-                      <span className="tabular-nums text-[#667085]">
-                        通过 {t.passed}/{t.participated} · <span className="font-semibold text-[#1F2937]">{t.pass_rate}%</span>
-                      </span>
-                    </div>
-                    <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-[#F2F5FA]">
-                      <div
-                        className="h-full rounded-full bg-[#1E5AA8] transition-all duration-150"
-                        style={{ width: `${Math.min(100, t.pass_rate)}%` }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+				<Card className="brand-card border-0">
+					<CardHeader className="pb-2">
+						<CardTitle className="text-base">分数段分布</CardTitle>
+					</CardHeader>
+					<CardContent className="pt-2">
+						<div className="h-64">
+							<ResponsiveContainer width="100%" height="100%">
+								<BarChart data={data.score_buckets} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+									<CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" vertical={false} />
+									<XAxis dataKey="name" fontSize={11} stroke="#9ca3af" />
+									<YAxis fontSize={12} stroke="#9ca3af" allowDecimals={false} />
+									<Tooltip contentStyle={{ borderRadius: 8, borderColor: "#e5e7eb", fontSize: 12 }} />
+									<Bar dataKey="count" radius={[6, 6, 0, 0]}>
+										{data.score_buckets.map((_, idx) => (
+											<Cell key={idx} fill={BUCKET_COLORS[idx % BUCKET_COLORS.length]} />
+										))}
+									</Bar>
+								</BarChart>
+							</ResponsiveContainer>
+						</div>
+					</CardContent>
+				</Card>
+			</div>
 
-        <Card className="border-[#E4E7EC]">
-          <CardHeader>
-            <CardTitle className="text-base font-semibold">待补考人员</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {data.retake_list.length === 0 ? (
-              <p className="text-sm text-[#667085]">目前没有需要补考的人员</p>
-            ) : (
-              <div className="max-h-64 space-y-2 overflow-y-auto">
-                {data.retake_list.map((r) => (
-                  <div key={r.id} className="flex items-center justify-between rounded-md border border-[#E4E7EC] px-3 py-2">
-                    <div>
-                      <p className="text-sm font-medium text-[#1F2937]">
-                        {r.candidate_name}
-                        <span className="ml-2 text-xs text-[#667085]">{r.team || "-"}</span>
-                      </p>
-                      <p className="text-xs text-[#667085]">{fmtDate(r.created_at)} · 第 {r.attempt_no} 次</p>
-                    </div>
-                    <Badge className="bg-[#FEE2E2] text-[#DC2626] hover:bg-[#FEE2E2]">
-                      {r.score} 分
-                    </Badge>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-    </>
-  );
+			{/* 班组排行 + 待补考清单 */}
+			<div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+				<Card className="brand-card lg:col-span-2 border-0">
+					<CardHeader className="pb-2 flex flex-row items-center justify-between">
+						<CardTitle className="text-base">班组通过率排行</CardTitle>
+						<span className="text-xs text-gray-400">按及格率排序</span>
+					</CardHeader>
+					<CardContent className="pt-2">
+						{teamStatsSorted.length === 0 ? (
+							<EmptyState hint="暂无班组考试数据" />
+						) : (
+							<div className="space-y-3">
+								{teamStatsSorted.map((t, i) => (
+									<div key={t.team} className="flex items-center gap-3">
+										<div
+											className={[
+												"w-7 h-7 rounded-lg flex items-center justify-center text-[13px] font-semibold shrink-0",
+												i === 0 ? "bg-amber-100 text-amber-600" : i === 1 ? "bg-slate-100 text-slate-600" : i === 2 ? "bg-orange-100 text-orange-600" : "bg-gray-100 text-gray-500",
+											].join(" ")}
+										>
+											{i + 1}
+										</div>
+										<div className="flex-1 min-w-0">
+											<div className="flex items-center justify-between text-sm">
+												<span className="text-gray-800 font-medium truncate">{t.team}</span>
+												<span className="text-gray-500 text-xs">
+													参考 {t.participated} · 通过 {t.passed} ·{" "}
+													<span className="text-[#1677ff] font-semibold">{t.pass_rate.toFixed(0)}%</span>
+												</span>
+											</div>
+											<Progress value={t.pass_rate} className="h-2 mt-1.5" />
+										</div>
+									</div>
+								))}
+							</div>
+						)}
+					</CardContent>
+				</Card>
+
+				<Card className="brand-card border-0">
+					<CardHeader className="pb-2 flex flex-row items-center justify-between">
+						<CardTitle className="text-base flex items-center gap-2">
+							<AlertTriangle className="w-4 h-4 text-orange-500" />
+							待补考清单
+						</CardTitle>
+						<Link href="/admin/records?is_pass=false" className="text-xs text-[#1677ff] hover:underline flex items-center gap-0.5">
+							查看全部 <ArrowRight className="w-3 h-3" />
+						</Link>
+					</CardHeader>
+					<CardContent className="pt-2 max-h-72 overflow-auto">
+						{data.retake_list.length === 0 ? (
+							<EmptyState hint="暂无待补考人员" />
+						) : (
+							<div className="space-y-2">
+								{data.retake_list.map((r) => (
+									<div key={r.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 border border-transparent hover:border-gray-100">
+										<div>
+											<div className="text-sm font-medium text-gray-800">{r.candidate_name}</div>
+											<div className="text-xs text-gray-500 mt-0.5">{r.team} · {r.phone}</div>
+										</div>
+										<Badge variant="destructive" className="tabular-nums">
+											{r.score} 分
+										</Badge>
+									</div>
+								))}
+							</div>
+						)}
+					</CardContent>
+				</Card>
+			</div>
+
+			{/* 时间趋势线（次要） */}
+			<Card className="brand-card border-0">
+				<CardHeader className="pb-2">
+					<CardTitle className="text-base">及格率走势</CardTitle>
+				</CardHeader>
+				<CardContent className="pt-2">
+					<div className="h-56">
+						<ResponsiveContainer width="100%" height="100%">
+							<LineChart
+								data={data.trend.map((t) => ({
+									date: t.date.slice(5),
+									rate: t.participated > 0 ? Math.round((t.passed / t.participated) * 100) : 0,
+								}))}
+								margin={{ top: 10, right: 20, left: -20, bottom: 0 }}
+							>
+								<CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" vertical={false} />
+								<XAxis dataKey="date" fontSize={12} stroke="#9ca3af" />
+								<YAxis fontSize={12} stroke="#9ca3af" domain={[0, 100]} unit="%" />
+								<Tooltip contentStyle={{ borderRadius: 8, borderColor: "#e5e7eb", fontSize: 12 }} formatter={(v: number) => `${v}%`} />
+								<Line type="monotone" dataKey="rate" stroke="#0958d9" strokeWidth={2.5} dot={{ r: 4, fill: "#1677ff" }} activeDot={{ r: 6 }} />
+							</LineChart>
+						</ResponsiveContainer>
+					</div>
+				</CardContent>
+			</Card>
+		</div>
+	)
+}
+
+function EmptyState({ hint }: { hint: string }) {
+	return (
+		<div className="py-10 text-center text-gray-400 text-sm">
+			<div className="text-4xl mb-2 opacity-60">📊</div>
+			{hint}
+		</div>
+	)
 }
