@@ -17,6 +17,10 @@ import {
 	Home,
 	ChevronRight,
 	ShieldCheck,
+	KeyRound,
+	Loader2,
+	Eye,
+	EyeOff,
 } from "lucide-react"
 import { toast } from "sonner"
 import {
@@ -27,6 +31,16 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+	Dialog,
+	DialogContent,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Button } from "@/components/ui/button"
 
 interface Me {
 	id: string
@@ -85,6 +99,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 	const router = useRouter()
 	const [me, setMe] = useState<Me | null>(null)
 	const [loading, setLoading] = useState(true)
+	const [pwdOpen, setPwdOpen] = useState(false)
+	const [pwdForm, setPwdForm] = useState({ oldPassword: "", newPassword: "", confirmPassword: "" })
+	const [pwdSaving, setPwdSaving] = useState(false)
+	const [showOld, setShowOld] = useState(false)
+	const [showNew, setShowNew] = useState(false)
 
 	useEffect(() => {
 		fetch("/api/auth/me")
@@ -102,10 +121,41 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 		router.push("/login")
 	}
 
+	const openPwdDialog = () => {
+		setPwdForm({ oldPassword: "", newPassword: "", confirmPassword: "" })
+		setShowOld(false)
+		setShowNew(false)
+		setPwdOpen(true)
+	}
+
+	const onChangePassword = async () => {
+		const { oldPassword, newPassword, confirmPassword } = pwdForm
+		if (!oldPassword || !newPassword) return toast.error("请填写原密码和新密码")
+		if (newPassword.length < 6) return toast.error("新密码至少6位")
+		if (newPassword !== confirmPassword) return toast.error("两次输入的新密码不一致")
+		setPwdSaving(true)
+		try {
+			const res = await fetch("/api/auth/change-password", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ oldPassword, newPassword }),
+			})
+			const data = await res.json()
+			if (!res.ok) throw new Error(data.error || "修改失败")
+			toast.success("密码修改成功")
+			setPwdOpen(false)
+		} catch (e) {
+			toast.error((e as Error).message)
+		} finally {
+			setPwdSaving(false)
+		}
+	}
+
 	const visibleNav = NAV.filter((n) => !n.adminOnly || me?.role === "admin")
 	const breadcrumbs = getBreadcrumbs(pathname)
 
 	return (
+		<>
 		<div className="min-h-screen flex bg-[#f5f7fa]">
 			{/* 侧边栏 */}
 			<aside className="w-[240px] shrink-0 brand-sidebar-gradient text-white flex flex-col relative sticky top-0 h-screen overflow-y-auto">
@@ -222,6 +272,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 										</div>
 									</DropdownMenuLabel>
 									<DropdownMenuSeparator />
+									<DropdownMenuItem onClick={openPwdDialog} className="cursor-pointer">
+										<KeyRound className="w-4 h-4 mr-2" />
+										修改密码
+									</DropdownMenuItem>
 									<DropdownMenuItem onClick={logout} className="text-red-600 cursor-pointer">
 										<LogOut className="w-4 h-4 mr-2" />
 										退出登录
@@ -240,5 +294,84 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 				</main>
 			</div>
 		</div>
+	{/* 修改密码弹窗 */}
+	<Dialog open={pwdOpen} onOpenChange={setPwdOpen}>
+		<DialogContent className="sm:max-w-[400px]">
+			<DialogHeader>
+				<DialogTitle className="flex items-center gap-2">
+					<KeyRound className="h-5 w-5 text-primary" />
+					修改密码
+				</DialogTitle>
+			</DialogHeader>
+			<div className="space-y-4 py-2">
+				<div className="space-y-1.5">
+					<Label htmlFor="old-pwd">原密码 <span className="text-destructive">*</span></Label>
+					<div className="relative">
+						<Input
+							id="old-pwd"
+							type={showOld ? "text" : "password"}
+							placeholder="请输入当前密码"
+							value={pwdForm.oldPassword}
+							onChange={(e) => setPwdForm((p) => ({ ...p, oldPassword: e.target.value }))}
+							className="pr-10"
+						/>
+						<button
+							type="button"
+							onClick={() => setShowOld((v) => !v)}
+							className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+						>
+							{showOld ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+						</button>
+					</div>
+				</div>
+				<div className="space-y-1.5">
+					<Label htmlFor="new-pwd">新密码 <span className="text-destructive">*</span></Label>
+					<div className="relative">
+						<Input
+							id="new-pwd"
+							type={showNew ? "text" : "password"}
+							placeholder="至少6位"
+							value={pwdForm.newPassword}
+							onChange={(e) => setPwdForm((p) => ({ ...p, newPassword: e.target.value }))}
+							className="pr-10"
+						/>
+						<button
+							type="button"
+							onClick={() => setShowNew((v) => !v)}
+							className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+						>
+							{showNew ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+						</button>
+					</div>
+				</div>
+				<div className="space-y-1.5">
+					<Label htmlFor="confirm-pwd">确认新密码 <span className="text-destructive">*</span></Label>
+					<Input
+						id="confirm-pwd"
+						type={showNew ? "text" : "password"}
+						placeholder="再次输入新密码"
+						value={pwdForm.confirmPassword}
+						onChange={(e) => setPwdForm((p) => ({ ...p, confirmPassword: e.target.value }))}
+					/>
+				</div>
+			</div>
+			<DialogFooter>
+				<Button variant="outline" onClick={() => setPwdOpen(false)} disabled={pwdSaving}>
+					取消
+				</Button>
+				<Button onClick={onChangePassword} disabled={pwdSaving}>
+					{pwdSaving ? (
+						<>
+							<Loader2 className="h-4 w-4 mr-2 animate-spin" />
+							提交中...
+						</>
+					) : (
+						"确认修改"
+					)}
+				</Button>
+			</DialogFooter>
+		</DialogContent>
+	</Dialog>
+	</>
 	)
 }
