@@ -1,65 +1,117 @@
-# 项目上下文
+# AGENTS.md — 智慧培训考试平台
 
-### 版本技术栈
+## 项目概览
 
-- **Framework**: Next.js 16 (App Router)
-- **Core**: React 19
-- **Language**: TypeScript 5
-- **UI 组件**: shadcn/ui (基于 Radix UI)
-- **Styling**: Tailwind CSS 4
+企业级培训 + 考试一体化 Web 应用。管理后台（PC）+ 工人考试端（H5）。
+
+核心流程：材料上传 → AI 解析/生成提纲+题库 → 创建试卷 → 二维码 → 扫码考试 → 成绩记录 → 数据看板。
+
+## 技术栈
+
+- Next.js 16 (App Router, `src/` 目录)
+- React 19 + TypeScript 5
+- shadcn/ui (Radix) + Tailwind CSS 4
+- Supabase（Postgres + 对象存储 + LLM + FetchClient）
+- `qrcode` 生成二维码、`recharts` 图表
 
 ## 目录结构
 
 ```
-├── public/                 # 静态资源
-├── scripts/                # 构建与启动脚本
-│   ├── build.sh            # 构建脚本
-│   ├── dev.sh              # 开发环境启动脚本
-│   ├── prepare.sh          # 预处理脚本
-│   └── start.sh            # 生产环境启动脚本
-├── src/
-│   ├── app/                # 页面路由与布局
-│   ├── components/ui/      # Shadcn UI 组件库
-│   ├── hooks/              # 自定义 Hooks
-│   ├── lib/                # 工具库
-│   │   └── utils.ts        # 通用工具函数 (cn)
-│   └── server.ts           # 自定义服务端入口
-├── next.config.ts          # Next.js 配置
-├── package.json            # 项目依赖管理
-└── tsconfig.json           # TypeScript 配置
+src/
+├── app/
+│   ├── api/                     # 后端 API 路由
+│   │   ├── materials/           # 材料 CRUD + 解析/提纲/题库生成
+│   │   ├── banks/               # 题库 CRUD + 题目增删
+│   │   ├── questions/[id]       # 单题编辑/删除
+│   │   ├── exams/               # 试卷 CRUD + 二维码 + 公开接口（开始考试）
+│   │   ├── records/             # 考试记录 + 交卷 + 评价
+│   │   └── dashboard            # 数据看板聚合接口
+│   ├── admin/                   # 管理后台（PC）
+│   │   ├── dashboard            # 数据看板
+│   │   ├── materials            # 材料管理 + 详情（提纲/题库）
+│   │   ├── banks                # 题库管理 + 题目编辑
+│   │   ├── exams                # 试卷管理 + 二维码弹窗
+│   │   └── records              # 考试记录 + 答卷详情
+│   └── exam/[id]/               # 工人考试端（H5）
+│       ├── page.tsx             # 信息录入 + 开始考试
+│       ├── paper/               # 答题页（倒计时/切屏检测/题卡）
+│       ├── result/              # 成绩页
+│       └── evaluate/            # 讲师评价页（5 维度星级）
+├── components/
+│   ├── ui/                      # shadcn 组件
+│   └── admin/                   # 管理后台专用组件（sidebar/page-header）
+├── lib/
+│   ├── ai.ts                    # LLM/FetchClient 封装 + JSON 抽取
+│   ├── crypto.ts                # 身份证 AES 加密/脱敏
+│   ├── db.ts                    # Supabase 客户端 + 随机工具
+│   ├── http.ts                  # 前端 fetch 封装
+│   ├── paper.ts                 # 试卷快照构建 + 评分
+│   ├── storage.ts               # 对象存储上传
+│   └── types.ts                 # 共享类型
+└── storage/database/
+    ├── shared/schema.ts         # Drizzle 表定义
+    └── supabase-client.ts       # Supabase 客户端（service_role）
 ```
 
-- 项目文件（如 app 目录、pages 目录、components 等）默认初始化到 `src/` 目录下。
+## 数据表
 
-## 包管理规范
+- `materials`：上传材料（file_name/file_type/file_url/file_size/status）
+- `outlines`：提纲（audience=worker/trainer，content_md）
+- `question_banks`：题库（difficulty=easy/medium，total_count）
+- `questions`：题目（type=single/multiple/judge，options JSON，answer JSON）
+- `exams`：试卷（paper_type=A/B，config JSON，required_fields JSON）
+- `exam_records`：考试记录（paper_snapshot JSON，answers JSON，score，is_pass，attempt_no，switch_count）
+- `exam_evaluations`：讲师评价（5 维度星级 + comment）
 
-**仅允许使用 pnpm** 作为包管理器，**严禁使用 npm 或 yarn**。
-**常用命令**：
-- 安装依赖：`pnpm add <package>`
-- 安装开发依赖：`pnpm add -D <package>`
-- 安装所有依赖：`pnpm install`
-- 移除依赖：`pnpm remove <package>`
+## 关键 API
 
-## 开发规范
+| 路由 | 方法 | 说明 |
+|------|------|------|
+| `/api/materials` | GET/POST | 材料列表/上传 |
+| `/api/materials/[id]` | GET/DELETE | 材料详情（含提纲+题库）/删除 |
+| `/api/materials/[id]/parse` | POST | 触发文件解析（FetchClient） |
+| `/api/materials/[id]/outline` | POST | AI 生成提纲（worker/trainer 两份） |
+| `/api/materials/[id]/questions` | POST | AI 生成题库（easy/medium） |
+| `/api/banks` | GET/POST | 题库列表/手动创建 |
+| `/api/banks/[id]` | GET/DELETE | 题库详情（含题目）/删除 |
+| `/api/banks/[id]/questions` | GET/POST | 题目列表/新增 |
+| `/api/questions/[id]` | PATCH/DELETE | 题目编辑/删除 |
+| `/api/exams` | GET/POST | 试卷列表/创建 |
+| `/api/exams/[id]` | GET/PATCH/DELETE | 试卷详情/编辑/删除 |
+| `/api/exams/[id]/qrcode` | GET | 二维码 DataURL |
+| `/api/exams/[id]/public` | GET/POST | 公开：获取试卷/开始考试 |
+| `/api/records` | GET | 考试记录列表（带筛选） |
+| `/api/records/[id]` | GET/PATCH | 记录详情/切屏计数上报 |
+| `/api/records/[id]/submit` | POST | 交卷评分 |
+| `/api/records/[id]/evaluate` | POST | 讲师评价 |
+| `/api/dashboard` | GET | 看板聚合数据 |
 
-### 编码规范
+## 开发命令
 
-- 默认按 TypeScript `strict` 心智写代码；优先复用当前作用域已声明的变量、函数、类型和导入，禁止引用未声明标识符或拼错变量名。
-- 禁止隐式 `any` 和 `as any`；函数参数、返回值、解构项、事件对象、`catch` 错误在使用前应有明确类型或先完成类型收窄，并清理未使用的变量和导入。
+- 安装：`pnpm install`
+- 开发：`pnpm dev`（端口由 DEPLOY_RUN_PORT 决定）
+- 构建：`pnpm build`
+- 启动：`pnpm start`
+- 类型检查：`pnpm ts-check`
+- Lint：`pnpm lint --quiet`
+- 数据库迁移：`coze-coding-ai db upgrade`
+- 模型生成：`coze-coding-ai db generate-models`
 
-### next.config 配置规范
+## 编码规范
 
-- 配置的路径不要写死绝对路径，必须使用 path.resolve(__dirname, ...)、import.meta.dirname 或 process.cwd() 动态拼接。
+- 函数参数必须显式类型，禁止 `any` / `as any`
+- 所有标点半角
+- 动态数据（window/Date.now/Math.random）必须 `'use client'` + `useEffect + useState`
+- 后端 API 统一 `runtime = "nodejs"`
+- Supabase 使用 service_role 客户端（`src/storage/database/supabase-client.ts`），无需 RLS
+- 身份证号加密存储（AES），展示用脱敏 mask
+- 试卷快照（paper_snapshot）记录随机后的题目+答案，评分基于快照
 
-### Hydration 问题防范
+## 设计规范
 
-1. 严禁在 JSX 渲染逻辑中直接使用 typeof window、Date.now()、Math.random() 等动态数据。**必须使用 'use client' 并配合 useEffect + useState 确保动态内容仅在客户端挂载后渲染**；同时严禁非法 HTML 嵌套（如 <p> 嵌套 <div>）。
-2. **禁止使用 head 标签**，优先使用 metadata，详见文档：https://nextjs.org/docs/app/api-reference/functions/generate-metadata
-   1. 三方 CSS、字体等资源可在 `globals.css` 中顶部通过 `@import` 引入或使用 next/font
-   2. preload, preconnect, dns-prefetch 通过 ReactDOM 的 preload、preconnect、dns-prefetch 方法引入
-   3. json-ld 可阅读 https://nextjs.org/docs/app/guides/json-ld
-
-## UI 设计与组件规范 (UI & Styling Standards)
-
-- 模板默认预装核心组件库 `shadcn/ui`，位于`src/components/ui/`目录下
-- Next.js 项目**必须默认**采用 shadcn/ui 组件、风格和规范，**除非用户指定用其他的组件和规范。**
+详见 `DESIGN.md`。要点：
+- 主色 `#1E5AA8`（工业蓝），强调 `#F26E22`（提示橘）
+- 通过绿 `#12A150` / 警告黄 `#D97706` / 危险红 `#DC2626`
+- 字体 `PingFang SC` / `Microsoft YaHei` 系统栈
+- 管理后台 PC 优先，工人端 H5 单列 480px 居中
+- 动效克制：统一 `duration-150 ease-out`，禁止弹跳/视差
