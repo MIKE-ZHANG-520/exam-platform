@@ -1,7 +1,28 @@
 import { getSupabaseClient } from "@/storage/database/supabase-client";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
-export function db() {
-  return getSupabaseClient();
+/**
+ * 返回一个懒加载的 Supabase 客户端代理。
+ * 只有在首次访问属性/方法时才真正实例化底层客户端，
+ * 避免在 Next.js `next build` 的 "Collecting page data" 阶段
+ * （模块顶层 `const supabase = db()`）因缺少环境变量抛错。
+ */
+export function db(): SupabaseClient {
+  let real: SupabaseClient | null = null;
+  const getReal = (): SupabaseClient => {
+    if (!real) real = getSupabaseClient();
+    return real;
+  };
+  return new Proxy({} as SupabaseClient, {
+    get(_target, prop) {
+      const client = getReal() as unknown as Record<PropertyKey, unknown>;
+      const value = client[prop];
+      if (typeof value === "function") {
+        return (value as (...args: unknown[]) => unknown).bind(client);
+      }
+      return value;
+    },
+  });
 }
 
 /** 从数组随机抽取 n 个（Fisher-Yates 洗牌前 n 位）。 */
