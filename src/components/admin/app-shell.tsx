@@ -108,7 +108,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 	return (
 		<div className="min-h-screen flex bg-[#f5f7fa]">
 			{/* 侧边栏 */}
-			<aside className="w-[240px] shrink-0 brand-sidebar-gradient text-white flex flex-col relative">
+			<aside className="w-[240px] shrink-0 brand-sidebar-gradient text-white flex flex-col relative sticky top-0 h-screen overflow-y-auto">
 				<div className="absolute inset-0 pointer-events-none opacity-40 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.25),transparent_60%)]" />
 				<div className="absolute bottom-0 left-0 right-0 h-32 pointer-events-none opacity-10 bg-[radial-gradient(circle_at_bottom_right,rgba(64,150,255,0.6),transparent_70%)]" />
 				<div className="relative px-5 pt-6 pb-5 border-b border-white/10">
