@@ -61,9 +61,10 @@ export async function generateText(
     headers,
     body: JSON.stringify({
       bot_id: EHSLAW_BOT_ID,
-      additional_messages: [{ role: "user", content: combined, content_type: "text" }],
+      user_id: "exam_platform",
       stream: false,
       auto_save_history: false,
+      additional_messages: [{ role: "user", content: combined, content_type: "text" }],
     }),
   });
 
