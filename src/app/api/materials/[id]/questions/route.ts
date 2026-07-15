@@ -214,20 +214,26 @@ export async function POST(req: NextRequest, { params }: Params) {
     const materialSlice = material.content_text.slice(0, 8000);
     const baseUserPrompt = `培训材料《${material.title}》：\n${materialSlice}\n\n请依据以上内容出题，严格按 JSON 数组格式输出。`;
 
-    // ── 分批生成：4 次 × 10 题 = 最多 40 题 ──
+    // ── 并行分批生成：4 批同时请求 × 10 题 = 最多 40 题 ──
+    // 用 Promise.allSettled 并行，总耗时 ≈ 单批耗时（约 15-30s），而非串行 60-120s
+    const batchPromises = Array.from({ length: NUM_BATCHES }, (_, i) => {
+      const batchLabel = `第 ${i + 1}/${NUM_BATCHES} 批`;
+      const batchPrompt = `${baseUserPrompt}\n\n【本次要求】这是第 ${i + 1} 批（共 ${NUM_BATCHES} 批），请生成与其它批次**不重复**的 10 道题。每批从材料不同章节/角度出题，避免重复。`;
+      return generateBatch(llm, systemPrompt, batchPrompt, batchLabel)
+        .then((qs) => ({ ok: true as const, qs, label: batchLabel }))
+        .catch((err) => ({ ok: false as const, err: err instanceof Error ? err.message : String(err), label: batchLabel }));
+    });
+
+    const batchSettled = await Promise.all(batchPromises);
+
     const batchResults: RawQuestion[] = [];
     const batchErrors: string[] = [];
-
-    for (let i = 0; i < NUM_BATCHES; i++) {
-      const batchLabel = `第 ${i + 1}/${NUM_BATCHES} 批`;
-      try {
-        const batchPrompt = `${baseUserPrompt}\n\n【本次要求】这是第 ${i + 1} 批，请生成与前面批次**不重复**的 10 道题。`;
-        const batch = await generateBatch(llm, systemPrompt, batchPrompt, batchLabel);
-        batchResults.push(...batch);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        batchErrors.push(`${batchLabel}: ${msg}`);
-        console.error(`[questions] ${batchLabel} 最终失败:`, msg);
+    for (const r of batchSettled) {
+      if (r.ok) {
+        batchResults.push(...r.qs);
+      } else {
+        batchErrors.push(`${r.label}: ${r.err}`);
+        console.error(`[questions] ${r.label} 最终失败:`, r.err);
       }
     }
 

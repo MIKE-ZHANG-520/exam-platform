@@ -232,6 +232,7 @@ export default function MaterialDetailPage() {
 	const [data, setData] = useState<Response | null>(null)
 	const [loading, setLoading] = useState(true)
 	const [genBank, setGenBank] = useState<null | "easy" | "medium">(null)
+	const [genBankElapsed, setGenBankElapsed] = useState(0)
 
 	const load = useCallback(() => {
 		setLoading(true)
@@ -247,6 +248,8 @@ export default function MaterialDetailPage() {
 
 	const generateBank = async (difficulty: "easy" | "medium") => {
 		setGenBank(difficulty)
+		setGenBankElapsed(0)
+		const timer = setInterval(() => setGenBankElapsed((s) => s + 1), 1000)
 		try {
 			await apiPost(`/api/materials/${id}/questions`, { difficulty })
 			toast.success(`${difficulty === "easy" ? "简易" : "中等"}题库已生成并自动发布，可在题库详情中查看编辑`)
@@ -254,7 +257,9 @@ export default function MaterialDetailPage() {
 		} catch (e) {
 			toast.error((e as Error).message)
 		} finally {
+			clearInterval(timer)
 			setGenBank(null)
+			setGenBankElapsed(0)
 		}
 	}
 
@@ -297,7 +302,7 @@ export default function MaterialDetailPage() {
 						disabled={genBank !== null}
 					>
 						{genBank === "easy" ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Sparkles className="w-4 h-4 mr-1.5" />}
-						AI 生成简易题库
+						{genBank === "easy" ? `AI 正在生成（${genBankElapsed}s）` : "AI 生成简易题库"}
 					</Button>
 					<Button
 						variant="outline"
@@ -305,7 +310,7 @@ export default function MaterialDetailPage() {
 						disabled={genBank !== null}
 					>
 						{genBank === "medium" ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Sparkles className="w-4 h-4 mr-1.5" />}
-						AI 生成中等题库
+						{genBank === "medium" ? `AI 正在生成（${genBankElapsed}s）` : "AI 生成中等题库"}
 					</Button>
 				</div>
 			</div>
