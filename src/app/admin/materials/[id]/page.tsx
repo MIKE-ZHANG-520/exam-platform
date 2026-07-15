@@ -262,7 +262,8 @@ export default function MaterialDetailPage() {
 		let totalGenerated = 0
 		const failedBatches: number[] = []
 
-		const postJson = async (body: unknown, timeoutMs = 15_000): Promise<Record<string, unknown>> => {
+		// 单次 fetch，带 30s 超时（覆盖冷启动 + Bot 网络往返）
+		const doFetch = async (body: unknown, timeoutMs: number): Promise<Record<string, unknown>> => {
 			const ctrl = new AbortController()
 			const tid = setTimeout(() => ctrl.abort(), timeoutMs)
 			try {
@@ -281,6 +282,35 @@ export default function MaterialDetailPage() {
 			} finally {
 				clearTimeout(tid)
 			}
+		}
+
+		// 带指数退避的重试（3 次，间隔 2s/4s/8s）——兜住 FaaS 冷启动 + 瞬时网络抖动
+		const postJson = async (body: unknown, timeoutMs = 30_000): Promise<Record<string, unknown>> => {
+			let lastErr: unknown = null
+			for (let attempt = 0; attempt < 3; attempt++) {
+				try {
+					return await doFetch(body, timeoutMs)
+				} catch (e) {
+					lastErr = e
+					const msg = e instanceof Error ? e.message : String(e)
+					console.warn(`[questions] fetch attempt ${attempt + 1}/3 failed:`, msg)
+					if (attempt < 2) {
+						await new Promise((r) => setTimeout(r, 2000 * Math.pow(2, attempt)))
+					}
+				}
+			}
+			throw lastErr instanceof Error ? lastErr : new Error(String(lastErr))
+		}
+
+		// 预热：先发一个 warmup 请求让 FaaS 冷启动完毕
+		try {
+			const ctrl = new AbortController()
+			const tid = setTimeout(() => ctrl.abort(), 30_000)
+			await fetch("/api/warmup", { method: "POST", signal: ctrl.signal }).finally(() =>
+				clearTimeout(tid),
+			)
+		} catch (e) {
+			console.warn("[questions] warmup 失败（不影响主流程）:", e)
 		}
 
 		try {

@@ -12,7 +12,7 @@ import { requireSession } from "@/lib/auth";
 import type { QuestionOption, QuestionType } from "@/lib/types";
 
 export const runtime = "nodejs";
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 interface Params {
   params: Promise<{ id: string }>;
@@ -150,21 +150,25 @@ function riskLabel(level: RiskLevel): string {
  *    → 最后一批（batchIndex=TOTAL-1）会将 bank 状态标记为 published
  */
 export async function POST(req: NextRequest, { params }: Params) {
-  const sess = await requireSession();
-  if (!sess) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
-
   try {
     const { id } = await params;
     const body = await req.json().catch(() => ({}));
-    const action: "start" | "poll" | "finalize" = body?.action;
+    const action: "warmup" | "start" | "poll" | "finalize" = body?.action;
+
+    // warmup 走在鉴权前面，最轻量，纯用于唤醒 FaaS 冷启动实例
+    if (action === "warmup") return NextResponse.json({ ok: true, ts: Date.now() });
+
+    const sess = await requireSession();
+    if (!sess) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
 
     if (action === "start") return await handleStart(id, body, sess.id);
     if (action === "poll") return await handlePoll(body);
     if (action === "finalize") return await handleFinalize(body);
 
-    return NextResponse.json({ error: "action 必须是 start / poll / finalize" }, { status: 400 });
+    return NextResponse.json({ error: "action 必须是 warmup / start / poll / finalize" }, { status: 400 });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+    console.error("[questions] POST fatal:", msg);
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

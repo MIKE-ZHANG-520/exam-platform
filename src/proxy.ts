@@ -6,6 +6,7 @@ const key = new TextEncoder().encode(SECRET)
 
 // 公开路径：登录页、登录接口、扫码考试相关、评价、静态资源
 const PUBLIC_API_PATTERNS = [
+	/^\/api\/warmup$/,
 	/^\/api\/auth\/login$/,
 	/^\/api\/auth\/logout$/,
 	/^\/api\/exams\/[^/]+\/public$/,
