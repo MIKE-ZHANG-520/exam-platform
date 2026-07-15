@@ -254,39 +254,90 @@ export default function MaterialDetailPage() {
 		setGenBankBatch(0)
 		setGenBankTotal(0)
 		const timer = setInterval(() => setGenBankElapsed((s) => s + 1), 1000)
-		try {
-			// 前端循环调用 4 次，每次单独请求 ~30s，避免网关超时
-			const TOTAL = 4
-			let bankId: number | null = null
-			let totalGenerated = 0
-			const failedBatches: number[] = []
-			interface BatchResp {
-				bankId: number
-				batchIndex: number
-				totalBatches: number
-				generatedInBatch: number
-				totalGenerated: number
-				done: boolean
-				error?: string
+
+		// 三阶段调用：start → poll(N次) → finalize
+		// 每次交互 <5s，避免网关超时
+		const TOTAL = 8
+		let bankId: string | null = null
+		let totalGenerated = 0
+		const failedBatches: number[] = []
+
+		const postJson = async (body: unknown, timeoutMs = 15_000): Promise<Record<string, unknown>> => {
+			const ctrl = new AbortController()
+			const tid = setTimeout(() => ctrl.abort(), timeoutMs)
+			try {
+				const res = await fetch(`/api/materials/${id}/questions`, {
+					method: "POST",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify(body),
+					signal: ctrl.signal,
+				})
+				const data = (await res.json().catch(() => ({}))) as Record<string, unknown>
+				if (!res.ok) {
+					const err = typeof data.error === "string" ? data.error : `HTTP ${res.status}`
+					throw new Error(err)
+				}
+				return data
+			} finally {
+				clearTimeout(tid)
 			}
+		}
+
+		try {
 			for (let i = 0; i < TOTAL; i++) {
 				setGenBankBatch(i + 1)
 				try {
-					const resp: BatchResp = await apiPost<BatchResp>(`/api/materials/${id}/questions`, {
+					// 1) start：创建 Bot 对话，立即返回 chatId
+					const startResp = await postJson({
+						action: "start",
 						difficulty,
 						batchIndex: i,
 						bankId,
 					})
-					bankId = resp.bankId
-					totalGenerated = resp.totalGenerated || totalGenerated
-					setGenBankTotal(totalGenerated)
-					if (resp.error) {
+					const chatId = startResp.chatId as string
+					const conversationId = startResp.conversationId as string
+					bankId = (startResp.bankId as string) || bankId
+
+					// 2) poll：每 2 秒 poll 一次，最多 60 次（120s）
+					let ready = false
+					for (let p = 0; p < 60; p++) {
+						await new Promise((r) => setTimeout(r, 2000))
+						const pollResp = await postJson({
+							action: "poll",
+							chatId,
+							conversationId,
+						})
+						if (pollResp.ready === true) {
+							ready = true
+							break
+						}
+					}
+					if (!ready) {
 						failedBatches.push(i + 1)
+						console.error(`第 ${i + 1} 批 poll 超时`)
+						continue
+					}
+
+					// 3) finalize：拉取回复、解析、入库
+					const finalResp = await postJson({
+						action: "finalize",
+						chatId,
+						conversationId,
+						bankId,
+						batchIndex: i,
+						difficulty,
+					})
+					if (typeof finalResp.totalGenerated === "number") {
+						totalGenerated = finalResp.totalGenerated
+						setGenBankTotal(totalGenerated)
+					}
+					if (finalResp.error) {
+						failedBatches.push(i + 1)
+						console.warn(`第 ${i + 1} 批解析出错:`, finalResp.error)
 					}
 				} catch (batchErr) {
 					failedBatches.push(i + 1)
 					console.error(`第 ${i + 1} 批失败:`, batchErr)
-					// 单批失败不中断，继续下一批
 				}
 			}
 
@@ -351,7 +402,7 @@ export default function MaterialDetailPage() {
 					>
 						{genBank === "easy" ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Sparkles className="w-4 h-4 mr-1.5" />}
 						{genBank === "easy"
-							? `生成中 ${genBankBatch}/4 · 已产出 ${genBankTotal} 题（${genBankElapsed}s）`
+							? `生成中 ${genBankBatch}/8 · 已产出 ${genBankTotal} 题（${genBankElapsed}s）`
 							: "AI 生成简易题库"}
 					</Button>
 					<Button
@@ -361,7 +412,7 @@ export default function MaterialDetailPage() {
 					>
 						{genBank === "medium" ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Sparkles className="w-4 h-4 mr-1.5" />}
 						{genBank === "medium"
-							? `生成中 ${genBankBatch}/4 · 已产出 ${genBankTotal} 题（${genBankElapsed}s）`
+							? `生成中 ${genBankBatch}/8 · 已产出 ${genBankTotal} 题（${genBankElapsed}s）`
 							: "AI 生成中等题库"}
 					</Button>
 				</div>
