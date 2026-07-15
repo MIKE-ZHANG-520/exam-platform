@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
 import { apiGet, apiPatch, apiPost, apiDelete } from "@/lib/http"
 import { toast } from "sonner"
-import { ArrowLeft, Loader2, Sparkles, Pencil, Save, CheckCircle2, XCircle, ListTree } from "lucide-react"
+import { ArrowLeft, Loader2, Sparkles, Pencil, Save, CheckCircle2, XCircle, ListTree, ShieldAlert } from "lucide-react"
 import { OutlineRenderer } from "@/components/admin/outline-renderer"
 
 interface Outline {
@@ -29,12 +29,22 @@ interface Bank {
 	status?: string
 }
 
+interface MaterialMetadata {
+	regulations?: string[]
+	clauses?: string[]
+	risk_level?: "high" | "medium" | "low"
+	risk_categories?: string[]
+	applicable_positions?: string[]
+	summary?: string
+}
+
 interface Material {
 	id: string
 	title: string
 	file_name: string
 	file_type: string
 	status: string
+	metadata?: MaterialMetadata | null
 }
 
 interface Response {
@@ -69,7 +79,7 @@ function OutlineCard({
 		setGenerating(true)
 		try {
 			await apiPost(`/api/materials/${materialId}/outline`, { audience })
-			toast.success(`${label}提纲已生成（草稿），可预览编辑后发布`)
+			toast.success(`${label}提纲已生成并自动发布`)
 			onRefresh()
 		} catch (e) {
 			toast.error((e as Error).message)
@@ -239,7 +249,7 @@ export default function MaterialDetailPage() {
 		setGenBank(difficulty)
 		try {
 			await apiPost(`/api/materials/${id}/questions`, { difficulty })
-			toast.success(`${difficulty === "easy" ? "简易" : "中等"}题库已生成（草稿），前往题库详情审核发布`)
+			toast.success(`${difficulty === "easy" ? "简易" : "中等"}题库已生成并自动发布，可在题库详情中查看编辑`)
 			load()
 		} catch (e) {
 			toast.error((e as Error).message)
@@ -299,6 +309,83 @@ export default function MaterialDetailPage() {
 					</Button>
 				</div>
 			</div>
+
+			{data.material.metadata && (
+				<Card className="border-0 brand-card">
+					<CardHeader className="pb-2">
+						<CardTitle className="text-base flex items-center gap-2">
+							<ShieldAlert className="w-4 h-4 text-[#f97316]" />
+							安全要点识别
+						</CardTitle>
+					</CardHeader>
+					<CardContent className="space-y-3">
+						{data.material.metadata.summary && (
+							<div className="text-sm text-gray-700 leading-relaxed bg-[#f5f7fa] rounded-lg p-3 border border-gray-100">
+								{data.material.metadata.summary}
+							</div>
+						)}
+						<div className="grid gap-3 md:grid-cols-2">
+							{data.material.metadata.risk_level && (
+								<div>
+									<div className="text-[11px] text-gray-500 mb-1">风险等级</div>
+									<Badge
+										className={
+											data.material.metadata.risk_level === "high"
+												? "bg-red-100 text-red-700 border-red-200"
+												: data.material.metadata.risk_level === "medium"
+													? "bg-orange-100 text-orange-700 border-orange-200"
+													: "bg-yellow-100 text-yellow-700 border-yellow-200"
+										}
+										variant="outline"
+									>
+										{data.material.metadata.risk_level === "high"
+											? "🔴 重大风险"
+											: data.material.metadata.risk_level === "medium"
+												? "🟠 较大风险"
+												: "🟡 一般风险"}
+									</Badge>
+								</div>
+							)}
+							{data.material.metadata.applicable_positions && data.material.metadata.applicable_positions.length > 0 && (
+								<div>
+									<div className="text-[11px] text-gray-500 mb-1">适用岗位</div>
+									<div className="flex flex-wrap gap-1">
+										{data.material.metadata.applicable_positions.map((p) => (
+											<Badge key={p} variant="outline" className="bg-[#eff6ff] text-[#1677ff] border-[#dbeafe]">
+												{p}
+											</Badge>
+										))}
+									</div>
+								</div>
+							)}
+							{data.material.metadata.regulations && data.material.metadata.regulations.length > 0 && (
+								<div>
+									<div className="text-[11px] text-gray-500 mb-1">涉及法规/标准</div>
+									<div className="flex flex-wrap gap-1">
+										{data.material.metadata.regulations.map((r) => (
+											<Badge key={r} variant="outline" className="text-gray-700">
+												{r}
+											</Badge>
+										))}
+									</div>
+								</div>
+							)}
+							{data.material.metadata.risk_categories && data.material.metadata.risk_categories.length > 0 && (
+								<div>
+									<div className="text-[11px] text-gray-500 mb-1">风险场景</div>
+									<div className="flex flex-wrap gap-1">
+										{data.material.metadata.risk_categories.map((r) => (
+											<Badge key={r} variant="outline" className="bg-[#fff7ed] text-[#f97316] border-orange-200">
+												{r}
+											</Badge>
+										))}
+									</div>
+								</div>
+							)}
+						</div>
+					</CardContent>
+				</Card>
+			)}
 
 			{data.banks.length > 0 && (
 				<Card className="border-0 brand-card">

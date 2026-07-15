@@ -54,7 +54,7 @@ export default function ExamsPage() {
 
   const load = useCallback(() => {
     setLoading(true);
-    Promise.all([apiGet<{ items: Exam[] }>("/api/exams"), apiGet<{ items: Bank[] }>("/api/banks")])
+    Promise.all([apiGet<{ items: Exam[] }>("/api/exams"), apiGet<{ items: Bank[] }>("/api/banks?status=published")])
       .then(([e, b]) => {
         setItems(e.items);
         setBanks(b.items);

@@ -13,7 +13,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
   const client = db();
   const { data, error } = await client
     .from("materials")
-    .select("id, title, file_name, file_type, file_key, file_size, status, error_message, content_text, created_at")
+    .select("id, title, file_name, file_type, file_key, file_size, status, error_message, content_text, metadata, created_at")
     .eq("id", id)
     .maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

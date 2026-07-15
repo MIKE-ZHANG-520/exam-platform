@@ -42,6 +42,7 @@ export const materials = pgTable(
 		status: varchar("status", { length: 20 }).notNull().default("uploaded"),
 		// uploaded / parsing / parsed / generating / ready / failed
 		error_message: text("error_message"),
+		metadata: jsonb("metadata"),                                  // AI 提取的元数据（法规、条款、风险等级、适用岗位）
 		owner_id: varchar("owner_id", { length: 36 }),                // 创建人（用于普通管理员的数据隔离）
 		created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 		updated_at: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
