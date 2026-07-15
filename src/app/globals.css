@@ -173,6 +173,20 @@ body {
   pointer-events: none;
 }
 
+/* Brand badge shimmer */
+@keyframes brandShimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+.brand-badge-shimmer {
+  background: linear-gradient(110deg, #64748b 30%, #1e5aa8 45%, #4096ff 50%, #1e5aa8 55%, #64748b 70%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: brandShimmer 3s linear infinite;
+}
+
 /* ========== 品牌工具类 ========== */
 .brand-sidebar-gradient {
   background: linear-gradient(180deg, var(--brand-sidebar-from) 0%, #1e50c9 55%, var(--brand-sidebar-to) 100%);

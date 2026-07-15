@@ -23,6 +23,7 @@ import {
 	EyeOff,
 } from "lucide-react"
 import { toast } from "sonner"
+import { BrandBadge } from "@/components/brand-badge"
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -290,6 +291,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 				<main className="flex-1 min-w-0 p-6 md:p-8">
 					<div className="mx-auto max-w-[1440px] animate-fade-in-up">
 						{children}
+					</div>
+					<div className="mx-auto max-w-[1440px] mt-8 pb-4 flex justify-center">
+						<BrandBadge />
 					</div>
 				</main>
 			</div>

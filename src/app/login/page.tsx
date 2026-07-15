@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
+import { BrandBadge } from "@/components/brand-badge"
 
 export const dynamic = "force-dynamic"
 
@@ -143,8 +144,9 @@ function LoginForm() {
 				</div>
 			</div>
 
-			<p className="absolute bottom-4 text-xs text-gray-400 z-10">
+			<p className="absolute bottom-4 text-xs text-gray-400 z-10 flex flex-col items-center gap-2">
 				© {new Date().getFullYear()} 智慧培训考试平台 · Powered by AI
+				<BrandBadge />
 			</p>
 		</div>
 	)
