@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { apiGet, apiPost, apiPatch, apiDelete, fmtDate } from "@/lib/http"
 import { toast } from "sonner"
 import { Loader2, Plus, Trash2, Pencil, Users, ShieldCheck, User as UserIcon } from "lucide-react"
+import { PageHeader } from "@/components/admin/page-header"
 
 interface User {
 	id: string
@@ -100,15 +101,16 @@ export default function UsersPage() {
 
 	return (
 		<div className="space-y-6">
-			<div className="flex items-center justify-between gap-3 flex-wrap">
-				<div>
-					<h1 className="text-[22px] font-semibold text-gray-900">用户管理</h1>
-					<p className="text-sm text-gray-500 mt-0.5">管理系统账号，仅超级管理员可操作</p>
-				</div>
-				<Button onClick={openAdd} className="bg-[#1677ff] hover:bg-[#0958d9]">
-					<Plus className="mr-1 h-4 w-4" /> 新增用户
-				</Button>
-			</div>
+			<PageHeader
+				title="用户管理"
+				subtitle="管理系统账号，仅超级管理员可操作"
+				icon={<Users className="h-5 w-5" />}
+				right={
+					<Button onClick={openAdd} className="bg-[#1677ff] hover:bg-[#0958d9]">
+						<Plus className="mr-1 h-4 w-4" /> 新增用户
+					</Button>
+				}
+			/>
 
 			<Card className="brand-card border-0">
 				<CardContent className="p-0">
@@ -120,10 +122,11 @@ export default function UsersPage() {
 						</div>
 					) : items.length === 0 ? (
 						<div className="py-16 flex flex-col items-center">
-							<div className="w-16 h-16 rounded-full bg-blue-50 flex items-center justify-center mb-3">
+							<div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center mb-3">
 								<Users className="w-7 h-7 text-[#1677ff]" />
 							</div>
-							<p className="text-sm text-gray-500">暂无用户</p>
+							<p className="text-[15px] font-medium text-gray-800">暂无用户</p>
+							<p className="text-xs text-gray-400 mt-1">点击右上方按钮添加第一个账号</p>
 						</div>
 					) : (
 						<Table>

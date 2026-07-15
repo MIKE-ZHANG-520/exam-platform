@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { apiGet, fmtDate } from "@/lib/http"
 import { toast } from "sonner"
 import { ListTree, ArrowRight, Search, BookOpen, CheckCircle2, Pencil, Filter } from "lucide-react"
+import { PageHeader } from "@/components/admin/page-header"
 
 interface Bank {
 	id: string
@@ -46,10 +47,7 @@ export default function BanksPage() {
 
 	return (
 		<div className="space-y-6">
-			<div>
-				<h1 className="text-[22px] font-semibold text-gray-900">题库管理</h1>
-				<p className="text-sm text-gray-500 mt-0.5">审核编辑 AI 生成的题库，发布后即可用于组卷</p>
-			</div>
+			<PageHeader title="题库管理" description="审核编辑 AI 生成的题库，发布后即可用于组卷" />
 
 			{/* 筛选区 */}
 			<div className="brand-card rounded-xl p-4 flex flex-wrap items-center gap-3">

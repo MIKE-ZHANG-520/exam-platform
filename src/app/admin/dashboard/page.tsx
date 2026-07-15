@@ -11,6 +11,9 @@ import {
 	Award,
 	ArrowRight,
 	Trophy,
+	BarChart3,
+	Target,
+	GraduationCap,
 } from "lucide-react"
 import {
 	ResponsiveContainer,
@@ -29,6 +32,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
+import { PageHeader } from "@/components/admin/page-header"
 
 interface Kpi {
 	total_records: number
@@ -76,12 +80,12 @@ interface DashData {
 }
 
 const KPI_THEMES = [
-	{ bg: "bg-[#eff6ff]", text: "text-[#1677ff]", ring: "ring-[#1677ff]/20" },
-	{ bg: "bg-[#ecfdf5]", text: "text-[#10b981]", ring: "ring-[#10b981]/20" },
-	{ bg: "bg-[#fff7ed]", text: "text-[#f97316]", ring: "ring-[#f97316]/20" },
-	{ bg: "bg-[#fef2f2]", text: "text-[#ef4444]", ring: "ring-[#ef4444]/20" },
-	{ bg: "bg-[#f5f3ff]", text: "text-[#8b5cf6]", ring: "ring-[#8b5cf6]/20" },
-	{ bg: "bg-[#fefce8]", text: "text-[#d97706]", ring: "ring-[#d97706]/20" },
+	{ gradient: "from-[#1677ff] to-[#0958d9]", bg: "bg-[#eff6ff]", text: "text-[#1677ff]" },
+	{ gradient: "from-[#10b981] to-[#059669]", bg: "bg-[#ecfdf5]", text: "text-[#10b981]" },
+	{ gradient: "from-[#f97316] to-[#ea580c]", bg: "bg-[#fff7ed]", text: "text-[#f97316]" },
+	{ gradient: "from-[#ef4444] to-[#dc2626]", bg: "bg-[#fef2f2]", text: "text-[#ef4444]" },
+	{ gradient: "from-[#8b5cf6] to-[#7c3aed]", bg: "bg-[#f5f3ff]", text: "text-[#8b5cf6]" },
+	{ gradient: "from-[#d97706] to-[#b45309]", bg: "bg-[#fefce8]", text: "text-[#d97706]" },
 ]
 
 function KpiCard({
@@ -101,17 +105,25 @@ function KpiCard({
 }) {
 	const t = KPI_THEMES[themeIdx % KPI_THEMES.length]
 	return (
-		<div className="brand-card rounded-xl p-5 flex items-start gap-4 transition-all hover:-translate-y-0.5">
-			<div className={`w-11 h-11 rounded-xl flex items-center justify-center ring-4 ${t.bg} ${t.ring}`}>
-				<Icon className={`w-5 h-5 ${t.text}`} />
+		<div className="brand-card rounded-xl p-5 transition-all hover:-translate-y-0.5 hover:shadow-lg group">
+			<div className="flex items-start justify-between">
+				<div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${t.gradient} flex items-center justify-center shadow-md group-hover:scale-105 transition-transform`}>
+					<Icon className="w-5 h-5 text-white" />
+				</div>
+				{TrendingUp && themeIdx < 2 && (
+					<div className={`flex items-center gap-0.5 text-[11px] ${t.text} font-medium`}>
+						<TrendingUp className="w-3 h-3" />
+						<span>活跃</span>
+					</div>
+				)}
 			</div>
-			<div className="flex-1 min-w-0">
+			<div className="mt-3">
 				<div className="text-[13px] text-gray-500">{label}</div>
 				<div className="mt-1 flex items-baseline gap-1">
-					<span className="text-[28px] font-semibold text-gray-900 tabular-nums leading-none">{value}</span>
+					<span className="text-[30px] font-bold text-gray-900 tabular-nums leading-none">{value}</span>
 					{suffix && <span className="text-sm text-gray-400 ml-1">{suffix}</span>}
 				</div>
-				{hint && <div className="text-[11px] text-gray-400 mt-1">{hint}</div>}
+				{hint && <div className="text-[11px] text-gray-400 mt-1.5">{hint}</div>}
 			</div>
 		</div>
 	)
@@ -134,7 +146,7 @@ export default function DashboardPage() {
 			<div className="space-y-6">
 				<div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
 					{Array.from({ length: 4 }).map((_, i) => (
-						<div key={i} className="skeleton h-24 rounded-xl" />
+						<div key={i} className="skeleton h-32 rounded-xl" />
 					))}
 				</div>
 				<div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -150,10 +162,7 @@ export default function DashboardPage() {
 
 	return (
 		<div className="space-y-6">
-			<div>
-				<h1 className="text-[22px] font-semibold text-gray-900">数据看板</h1>
-				<p className="text-sm text-gray-500 mt-0.5">培训考试情况全景概览</p>
-			</div>
+			<PageHeader title="数据看板" subtitle="培训考试情况全景概览" icon={<BarChart3 className="h-5 w-5" />} />
 
 			{/* KPI 卡片 */}
 			<div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -167,14 +176,17 @@ export default function DashboardPage() {
 				<KpiCard icon={AlertTriangle} label="待补考" value={k.pending_retake} themeIdx={3} hint="首考未过" />
 				<KpiCard icon={TrendingUp} label="近 7 日参考" value={data.trend.reduce((s, t) => s + t.participated, 0)} themeIdx={0} />
 				<KpiCard icon={Trophy} label="满分人次" value={data.score_buckets[3]?.count || 0} themeIdx={1} suffix="人" />
-				<KpiCard icon={Users} label="参考班组" value={data.team_stats.length} themeIdx={4} suffix="个" />
+				<KpiCard icon={Target} label="参考班组" value={data.team_stats.length} themeIdx={4} suffix="个" />
 			</div>
 
 			{/* 趋势图 + 分数段分布 */}
 			<div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 				<Card className="brand-card lg:col-span-2 border-0">
 					<CardHeader className="flex flex-row items-center justify-between pb-2">
-						<CardTitle className="text-base">近 7 日趋势</CardTitle>
+						<CardTitle className="text-base flex items-center gap-2">
+							<TrendingUp className="w-4 h-4 text-[#1677ff]" />
+							近 7 日趋势
+						</CardTitle>
 						<div className="flex gap-3 text-xs text-gray-500">
 							<span className="flex items-center gap-1.5"><i className="inline-block w-2 h-2 rounded-full bg-[#1677ff]" />参考人次</span>
 							<span className="flex items-center gap-1.5"><i className="inline-block w-2 h-2 rounded-full bg-[#10b981]" />通过人次</span>
@@ -208,7 +220,10 @@ export default function DashboardPage() {
 
 				<Card className="brand-card border-0">
 					<CardHeader className="pb-2">
-						<CardTitle className="text-base">分数段分布</CardTitle>
+						<CardTitle className="text-base flex items-center gap-2">
+							<BarChart3 className="w-4 h-4 text-[#8b5cf6]" />
+							分数段分布
+						</CardTitle>
 					</CardHeader>
 					<CardContent className="pt-2">
 						<div className="h-64">
@@ -234,7 +249,10 @@ export default function DashboardPage() {
 			<div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 				<Card className="brand-card lg:col-span-2 border-0">
 					<CardHeader className="pb-2 flex flex-row items-center justify-between">
-						<CardTitle className="text-base">班组通过率排行</CardTitle>
+						<CardTitle className="text-base flex items-center gap-2">
+							<GraduationCap className="w-4 h-4 text-[#1677ff]" />
+							班组通过率排行
+						</CardTitle>
 						<span className="text-xs text-gray-400">按及格率排序</span>
 					</CardHeader>
 					<CardContent className="pt-2">
@@ -246,8 +264,8 @@ export default function DashboardPage() {
 									<div key={t.team} className="flex items-center gap-3">
 										<div
 											className={[
-												"w-7 h-7 rounded-lg flex items-center justify-center text-[13px] font-semibold shrink-0",
-												i === 0 ? "bg-amber-100 text-amber-600" : i === 1 ? "bg-slate-100 text-slate-600" : i === 2 ? "bg-orange-100 text-orange-600" : "bg-gray-100 text-gray-500",
+												"w-8 h-8 rounded-lg flex items-center justify-center text-[13px] font-bold shrink-0",
+												i === 0 ? "bg-gradient-to-br from-amber-400 to-amber-500 text-white shadow-md" : i === 1 ? "bg-gradient-to-br from-slate-300 to-slate-400 text-white shadow-sm" : i === 2 ? "bg-gradient-to-br from-orange-300 to-orange-400 text-white shadow-sm" : "bg-gray-100 text-gray-500",
 											].join(" ")}
 										>
 											{i + 1}
@@ -285,7 +303,7 @@ export default function DashboardPage() {
 						) : (
 							<div className="space-y-2">
 								{data.retake_list.map((r) => (
-									<div key={r.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 border border-transparent hover:border-gray-100">
+									<div key={r.id} className="flex items-center justify-between p-2.5 rounded-lg hover:bg-gray-50 border border-transparent hover:border-gray-100 transition-all">
 										<div>
 											<div className="text-sm font-medium text-gray-800">{r.candidate_name}</div>
 											<div className="text-xs text-gray-500 mt-0.5">{r.team} · {r.phone}</div>
@@ -301,10 +319,13 @@ export default function DashboardPage() {
 				</Card>
 			</div>
 
-			{/* 时间趋势线（次要） */}
+			{/* 及格率走势 */}
 			<Card className="brand-card border-0">
 				<CardHeader className="pb-2">
-					<CardTitle className="text-base">及格率走势</CardTitle>
+					<CardTitle className="text-base flex items-center gap-2">
+						<TrendingUp className="w-4 h-4 text-[#1677ff]" />
+						及格率走势
+					</CardTitle>
 				</CardHeader>
 				<CardContent className="pt-2">
 					<div className="h-56">
@@ -332,8 +353,8 @@ export default function DashboardPage() {
 
 function EmptyState({ hint }: { hint: string }) {
 	return (
-		<div className="py-10 text-center text-gray-400 text-sm">
-			<div className="text-4xl mb-2 opacity-60">📊</div>
+		<div className="py-10 text-center text-gray-400 text-sm flex flex-col items-center">
+			<BarChart3 className="w-10 h-10 mb-2 opacity-30" />
 			{hint}
 		</div>
 	)

@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { Plus, Loader2, ClipboardCheck, QrCode, Trash2, Download, ArrowRight } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { PageHeader } from "@/components/admin/page-header";
 
 interface Exam {
   id: string;
@@ -118,11 +119,7 @@ export default function ExamsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-[22px] font-semibold text-gray-900">考试试卷</h1>
-          <p className="text-sm text-gray-500 mt-0.5">配置试卷、生成扫码入口，工人扫码即可参考</p>
-        </div>
+      <PageHeader title="考试试卷" description="配置试卷、生成扫码入口，工人扫码即可参考" right={
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
             <Button className="bg-[#1677ff] hover:bg-[#0958d9] shadow-sm">
@@ -181,7 +178,7 @@ export default function ExamsPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </div>
+      } />
 
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">

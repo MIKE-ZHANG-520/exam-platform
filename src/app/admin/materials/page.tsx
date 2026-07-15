@@ -29,6 +29,7 @@ import {
 	AlertDialogTitle,
 	AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import { PageHeader } from "@/components/admin/page-header"
 
 interface Material {
 	id: string
@@ -98,14 +99,7 @@ export default function MaterialsPage() {
 
 	return (
 		<div className="space-y-6">
-			<div className="flex flex-wrap items-end justify-between gap-3">
-				<div>
-					<h1 className="text-[22px] font-semibold text-gray-900">培训材料</h1>
-					<p className="text-sm text-gray-500 mt-0.5">
-						支持 docx / xlsx / pdf / pptx / md，上传后 AI 自动解析并可生成提纲与题库
-					</p>
-				</div>
-			</div>
+			<PageHeader title="培训材料" description="支持 docx / xlsx / pdf / pptx / md，上传后 AI 自动解析并可生成提纲与题库" />
 
 			{/* 上传区（拖拽 + 点击） */}
 			<div

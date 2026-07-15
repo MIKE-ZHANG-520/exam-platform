@@ -12,7 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { apiGet, fmtDate, fmtDuration } from "@/lib/http";
 import { toast } from "sonner";
-import { Loader2, Eye, Download, Search } from "lucide-react";
+import { Loader2, Eye, Download, Search, FileText } from "lucide-react";
+import { PageHeader } from "@/components/admin/page-header";
 
 interface Record {
   id: string;
@@ -98,15 +99,16 @@ function RecordsInner() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div>
-          <h1 className="text-[22px] font-semibold text-gray-900">考试记录</h1>
-          <p className="text-sm text-gray-500 mt-0.5">工人考试的所有详细记录，可搜索导出</p>
-        </div>
-        <Button variant="outline" onClick={exportCsv} disabled={items.length === 0} className="hover:border-[#1677ff] hover:text-[#1677ff]">
-          <Download className="mr-1 h-4 w-4" /> 导出 CSV
-        </Button>
-      </div>
+      <PageHeader
+        title="考试记录"
+        subtitle="工人考试的所有详细记录，可搜索导出"
+        icon={<FileText className="h-5 w-5" />}
+        right={
+          <Button variant="outline" onClick={exportCsv} disabled={items.length === 0} className="hover:border-[#1677ff] hover:text-[#1677ff]">
+            <Download className="mr-1 h-4 w-4" /> 导出 CSV
+          </Button>
+        }
+      />
 
       <div className="brand-card rounded-xl p-4">
         <div className="flex items-center gap-2 text-sm text-gray-500 mb-3">
@@ -163,10 +165,11 @@ function RecordsInner() {
             </div>
           ) : items.length === 0 ? (
             <div className="py-16 flex flex-col items-center">
-              <div className="w-16 h-16 rounded-full bg-gray-50 flex items-center justify-center mb-3">
-                <Eye className="w-7 h-7 text-gray-400" />
+              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center mb-3">
+                <Eye className="w-7 h-7 text-[#1677ff]" />
               </div>
-              <p className="text-sm text-gray-500">暂无考试记录</p>
+              <p className="text-[15px] font-medium text-gray-800">暂无考试记录</p>
+              <p className="text-xs text-gray-400 mt-1">工人完成考试后记录会在这里展示</p>
             </div>
           ) : (
             <Table>

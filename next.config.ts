@@ -6,7 +6,7 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: path.resolve(__dirname),
   },
-  outputFileTracingRoot: path.resolve(__dirname),
+  // outputFileTracingRoot: path.resolve(__dirname),
   allowedDevOrigins: ['*.dev.coze.site'],
   images: {
     remotePatterns: [

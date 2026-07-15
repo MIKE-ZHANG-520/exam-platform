@@ -1,13 +1,11 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { CheckCircle2, AlertTriangle, XCircle, Sparkles, ListOrdered, Clock, Lightbulb, MessageCircle, BookOpen } from "lucide-react"
-
-/**
- * 提纲组件化渲染器
- * 输入：Markdown 字符串（AI 生成的提纲）
- * 输出：卡片化章节 + 语义化图标 + 目录导航
- */
+import {
+	CheckCircle2, AlertTriangle, XCircle, Sparkles, ListOrdered,
+	Clock, Lightbulb, MessageCircle, BookOpen, Palette, HelpCircle,
+	Users, Volume2, Flame, Zap,
+} from "lucide-react"
 
 type OutlineBlock =
 	| { kind: "heading"; level: 2 | 3; text: string; id: string }
@@ -15,6 +13,16 @@ type OutlineBlock =
 	| { kind: "callout"; tag: "success" | "warn" | "danger" | "tip" | "quote" | "info"; text: string }
 	| { kind: "list"; items: string[]; ordered: boolean; startIdx?: number }
 	| { kind: "quote"; text: string }
+	| { kind: "story"; text: string }
+	| { kind: "formula"; text: string }
+	| { kind: "case"; text: string }
+	| { kind: "image"; text: string }
+	| { kind: "quiz"; text: string }
+	| { kind: "icebreak"; text: string }
+	| { kind: "roleplay"; text: string }
+	| { kind: "discuss"; text: string }
+	| { kind: "script"; text: string }
+	| { kind: "time"; text: string }
 
 interface Section {
 	id: string
@@ -22,13 +30,10 @@ interface Section {
 	blocks: OutlineBlock[]
 }
 
-const CIRCLED_NUM = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳"
-
 function slug(s: string, idx: number): string {
 	return `sec-${idx}-` + s.replace(/[^\p{L}\p{N}]+/gu, "-").slice(0, 24).replace(/^-|-$/g, "").toLowerCase()
 }
 
-/** 简易 markdown 解析（够用即可，不引入完整解析器） */
 function parseMarkdown(md: string): Section[] {
 	const lines = md.split(/\r?\n/)
 	const sections: Section[] = []
@@ -57,7 +62,6 @@ function parseMarkdown(md: string): Section[] {
 		const raw = lines[i]
 		const line = raw.trim()
 
-		// 章节标题
 		const h2 = /^##\s+(.+)$/.exec(line)
 		const h3 = /^###\s+(.+)$/.exec(line)
 		if (h2 || h3) {
@@ -103,8 +107,12 @@ function parseMarkdown(md: string): Section[] {
 		if (ul) {
 			if (listOrdered && listBuf.length > 0) flushList()
 			const item = ul[1]
+			const special = detectSpecial(item)
 			const callout = detectCallout(item)
-			if (callout) {
+			if (special) {
+				flushList()
+				current.blocks.push(special)
+			} else if (callout) {
 				flushList()
 				current.blocks.push(callout)
 			} else {
@@ -115,6 +123,12 @@ function parseMarkdown(md: string): Section[] {
 		}
 
 		// 独立行的特殊标记
+		const special = detectSpecial(line)
+		if (special) {
+			flushList()
+			current.blocks.push(special)
+			continue
+		}
 		const callout = detectCallout(line)
 		if (callout) {
 			flushList()
@@ -138,6 +152,32 @@ function detectCallout(text: string): OutlineBlock | null {
 	if (/^🔴|禁止|严禁/.test(t)) return { kind: "callout", tag: "danger", text: t.replace(/^🔴\s*/, "") }
 	if (/^💡|口诀[:：]?|记忆[:：]/.test(t)) return { kind: "callout", tag: "tip", text: t.replace(/^💡\s*/, "") }
 	if (/^ℹ️|提示[:：]?/.test(t)) return { kind: "callout", tag: "info", text: t.replace(/^ℹ️\s*/, "") }
+	return null
+}
+
+/** Detect V3 special block types: story, formula, case, image, quiz, icebreak, roleplay, discuss, script, time */
+function detectSpecial(text: string): OutlineBlock | null {
+	const t = text.trim()
+	// 📖案例 / 案例：
+	if (/^📖|案例[:：]/.test(t)) return { kind: "case", text: t.replace(/^📖\s*/, "").replace(/^案例[:：]\s*/, "") }
+	// 🎨配图 / 配图建议：
+	if (/^🎨|配图[:：]/.test(t)) return { kind: "image", text: t.replace(/^🎨\s*/, "").replace(/^配图[建议]?[:：]\s*/, "") }
+	// ❓考考你 / 互动提问 / 思考题：
+	if (/^❓|考考你[:：]|思考题[:：]|互动提问[:：]/.test(t)) return { kind: "quiz", text: t.replace(/^❓\s*/, "").replace(/^(考考你|思考题|互动提问)[:：]\s*/, "") }
+	// 🧊破冰 / 破冰游戏：
+	if (/^🧊|破冰[:：]/.test(t)) return { kind: "icebreak", text: t.replace(/^🧊\s*/, "").replace(/^破冰[游戏]?[:：]\s*/, "") }
+	// 🎭角色扮演 / 情景模拟：
+	if (/^🎭|角色扮演[:：]|情景模拟[:：]/.test(t)) return { kind: "roleplay", text: t.replace(/^🎭\s*/, "").replace(/^(角色扮演|情景模拟)[:：]\s*/, "") }
+	// 💬讨论 / 分组讨论：
+	if (/^💬|讨论[:：]|分组讨论[:：]/.test(t)) return { kind: "discuss", text: t.replace(/^💬\s*/, "").replace(/^(讨论|分组讨论)[:：]\s*/, "") }
+	// 🗣️话术 / 互动话术 / 培训师话术：
+	if (/^🗣️|话术[:：]|互动话术[:：]|培训师话术[:：]/.test(t)) return { kind: "script", text: t.replace(/^🗣️\s*/, "").replace(/^(话术|互动话术|培训师话术)[:：]\s*/, "") }
+	// ⏱️时间 / 时间分配：
+	if (/^⏱️|时间[:：]|时间分配[:：]/.test(t)) return { kind: "time", text: t.replace(/^⏱️\s*/, "").replace(/^(时间[分配]?|用时)[:：]\s*/, "") }
+	// 📝故事 / 故事开场 / 工地小故事：
+	if (/^📝|故事[:：]|工地小故事[:：]/.test(t)) return { kind: "story", text: t.replace(/^📝\s*/, "").replace(/^(故事|工地小故事|故事开场)[:：]\s*/, "") }
+	// 🎯口诀 / 顺口溜：
+	if (/^🎯|顺口溜[:：]/.test(t)) return { kind: "formula", text: t.replace(/^🎯\s*/, "").replace(/^顺口溜[:：]\s*/, "") }
 	return null
 }
 
@@ -191,8 +231,8 @@ function Callout({ tag, text }: { tag: CalloutTag; text: string }) {
 	const Icon = cfg.icon
 	if (tag === "quote") {
 		return (
-			<div className={`my-2 p-3 pl-4 border-l-4 ${cfg.border} ${cfg.bg} rounded-r-md flex gap-2 items-start`}>
-				<Icon className={`w-4 h-4 mt-0.5 shrink-0 ${cfg.iconColor}`} />
+			<div className="my-2 p-3 pl-4 border-l-4 border-yellow-400 bg-yellow-50 rounded-r-md flex gap-2 items-start">
+				<Icon className="w-4 h-4 mt-0.5 shrink-0 text-yellow-700" />
 				<div className="text-[14px] leading-relaxed text-gray-800 italic">{inline(text)}</div>
 			</div>
 		)
@@ -216,8 +256,121 @@ function NumberBullet({ n }: { n: number }) {
 	)
 }
 
-function CircledNumber({ n }: { n: number }) {
-	return <span className="text-[#1677ff] font-medium mr-1">{n >= 1 && n <= 20 ? CIRCLED_NUM[n - 1] : `(${n})`}</span>
+function StoryBox({ text }: { text: string }) {
+	return (
+		<div className="outline-story-box my-2">
+			<div className="flex items-center gap-1.5 mb-1 text-[11px] font-semibold text-blue-600">
+				<BookOpen className="w-3.5 h-3.5" />
+				<span>工地故事</span>
+			</div>
+			{inline(text)}
+		</div>
+	)
+}
+
+function FormulaBox({ text }: { text: string }) {
+	return (
+		<div className="outline-formula-box my-2 pl-6">
+			<div className="flex items-center gap-1.5 mb-0.5 text-[11px] font-semibold text-amber-600">
+				<Sparkles className="w-3.5 h-3.5" />
+				<span>保命口诀</span>
+			</div>
+			{inline(text)}
+		</div>
+	)
+}
+
+function CaseBox({ text }: { text: string }) {
+	return (
+		<div className="outline-case-box my-2 mt-3">
+			<span className="outline-case-tag flex items-center gap-1">
+				<BookOpen className="w-2.5 h-2.5" />
+				案例
+			</span>
+			<div className="pt-1">{inline(text)}</div>
+		</div>
+	)
+}
+
+function ImageBox({ text }: { text: string }) {
+	return (
+		<div className="outline-image-box my-2">
+			<Palette className="w-4 h-4 shrink-0 mt-0.5 text-indigo-400" />
+			<div className="flex-1">
+				<div className="text-[11px] font-semibold text-indigo-500 mb-0.5">配图建议</div>
+				{inline(text)}
+			</div>
+		</div>
+	)
+}
+
+function QuizBox({ text }: { text: string }) {
+	return (
+		<div className="outline-quiz-box my-2">
+			<div className="flex items-center gap-1.5 mb-1 text-[11px] font-semibold text-purple-600">
+				<HelpCircle className="w-3.5 h-3.5" />
+				<span>考考你</span>
+			</div>
+			{inline(text)}
+		</div>
+	)
+}
+
+function IcebreakBox({ text }: { text: string }) {
+	return (
+		<div className="outline-icebreak-box my-2">
+			<div className="flex items-center gap-1.5 mb-1 text-[11px] font-semibold text-emerald-600">
+				<Zap className="w-3.5 h-3.5" />
+				<span>破冰互动</span>
+			</div>
+			{inline(text)}
+		</div>
+	)
+}
+
+function RoleplayBox({ text }: { text: string }) {
+	return (
+		<div className="outline-roleplay-box my-2">
+			<div className="flex items-center gap-1.5 mb-1 text-[11px] font-semibold text-orange-600">
+				<Users className="w-3.5 h-3.5" />
+				<span>角色扮演</span>
+			</div>
+			{inline(text)}
+		</div>
+	)
+}
+
+function DiscussBox({ text }: { text: string }) {
+	return (
+		<div className="outline-discuss-box my-2">
+			<div className="flex items-center gap-1.5 mb-1 text-[11px] font-semibold text-sky-600">
+				<MessageCircle className="w-3.5 h-3.5" />
+				<span>分组讨论</span>
+			</div>
+			{inline(text)}
+		</div>
+	)
+}
+
+function ScriptBox({ text }: { text: string }) {
+	return (
+		<div className="outline-script-box my-2">
+			<div className="flex items-center gap-1.5 mb-0.5 text-[11px] font-semibold text-purple-500">
+				<Volume2 className="w-3 h-3" />
+				<span>互动话术</span>
+			</div>
+			{inline(text)}
+		</div>
+	)
+}
+
+function TimeBox({ text }: { text: string }) {
+	return (
+		<div className="outline-time-box my-2">
+			<Clock className="w-3.5 h-3.5 text-emerald-500" />
+			{inline(text)}
+		</div>
+	)
 }
 
 function renderBlock(b: OutlineBlock, idx: number, audience: "worker" | "trainer") {
@@ -237,13 +390,23 @@ function renderBlock(b: OutlineBlock, idx: number, audience: "worker" | "trainer
 		)
 	}
 	if (b.kind === "callout") return <Callout key={idx} tag={b.tag} text={b.text} />
+	if (b.kind === "story") return <StoryBox key={idx} text={b.text} />
+	if (b.kind === "formula") return <FormulaBox key={idx} text={b.text} />
+	if (b.kind === "case") return <CaseBox key={idx} text={b.text} />
+	if (b.kind === "image") return <ImageBox key={idx} text={b.text} />
+	if (b.kind === "quiz") return <QuizBox key={idx} text={b.text} />
+	if (b.kind === "icebreak") return <IcebreakBox key={idx} text={b.text} />
+	if (b.kind === "roleplay") return <RoleplayBox key={idx} text={b.text} />
+	if (b.kind === "discuss") return <DiscussBox key={idx} text={b.text} />
+	if (b.kind === "script") return <ScriptBox key={idx} text={b.text} />
+	if (b.kind === "time") return <TimeBox key={idx} text={b.text} />
 	if (b.kind === "list") {
 		if (b.ordered) {
 			return (
 				<ol key={idx} className="my-2 space-y-2">
 					{b.items.map((it, i) => (
 						<li key={i} className="flex gap-2.5 items-start">
-							{audience === "worker" ? <NumberBullet n={(b.startIdx || 1) + i} /> : <CircledNumber n={(b.startIdx || 1) + i} />}
+							<NumberBullet n={(b.startIdx || 1) + i} />
 							<div className="text-[14px] leading-relaxed text-gray-800 flex-1">{inline(it)}</div>
 						</li>
 					))}
@@ -264,13 +427,13 @@ function renderBlock(b: OutlineBlock, idx: number, audience: "worker" | "trainer
 	return null
 }
 
-/** 判断培训师版章节主题色 */
 function trainerTheme(title: string): { gradient: string; ring: string; icon: React.ComponentType<{ className?: string }> } {
 	const t = title
 	if (/误区|错误|问题/.test(t)) return { gradient: "from-orange-500 to-amber-500", ring: "ring-orange-100", icon: AlertTriangle }
 	if (/互动|设问|提问|讨论/.test(t)) return { gradient: "from-purple-500 to-fuchsia-500", ring: "ring-purple-100", icon: MessageCircle }
 	if (/时间|安排|节奏|分配/.test(t)) return { gradient: "from-emerald-500 to-teal-500", ring: "ring-emerald-100", icon: Clock }
 	if (/核心|知识|要点|重点/.test(t)) return { gradient: "from-[#1677ff] to-[#0958d9]", ring: "ring-blue-100", icon: BookOpen }
+	if (/案例|事故|警示/.test(t)) return { gradient: "from-red-500 to-rose-500", ring: "ring-red-100", icon: Flame }
 	return { gradient: "from-slate-500 to-slate-600", ring: "ring-slate-100", icon: ListOrdered }
 }
 
@@ -283,14 +446,22 @@ export function OutlineRenderer({ markdown, audience }: { markdown: string; audi
 	}, [active, sections])
 
 	if (sections.length === 0 || (sections.length === 1 && sections[0].blocks.length === 0)) {
-		return <div className="text-sm text-gray-400 p-8 text-center">暂无内容</div>
+		return (
+			<div className="flex flex-col items-center justify-center py-16 text-gray-400">
+				<BookOpen className="w-12 h-12 mb-3 opacity-30" />
+				<p className="text-sm">暂无提纲内容</p>
+			</div>
+		)
 	}
 
 	return (
 		<div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-6">
 			{/* 目录 */}
-			<nav className="lg:sticky lg:top-20 self-start rounded-xl border border-gray-100 bg-white p-3 max-h-[calc(100vh-6rem)] overflow-auto">
-				<div className="text-[11px] text-gray-400 px-2 pb-2 uppercase tracking-wider">目录</div>
+			<nav className="lg:sticky lg:top-20 self-start rounded-xl border border-gray-100 bg-white p-3 max-h-[calc(100vh-6rem)] overflow-auto shadow-sm">
+				<div className="text-[11px] text-gray-400 px-2 pb-2 uppercase tracking-wider flex items-center gap-1">
+					<ListOrdered className="w-3 h-3" />
+					目录
+				</div>
 				<div className="space-y-0.5">
 					{sections.map((s, i) => (
 						<a
@@ -299,7 +470,7 @@ export function OutlineRenderer({ markdown, audience }: { markdown: string; audi
 							onClick={() => setActive(s.id)}
 							className={[
 								"block px-2 py-1.5 rounded-md text-[13px] transition truncate",
-								active === s.id ? "bg-[#eff6ff] text-[#1677ff] font-medium" : "text-gray-600 hover:bg-gray-50 hover:text-gray-800",
+								active === s.id ? "bg-[#eff6ff] text-[#1677ff] font-medium border-l-2 border-[#1677ff] pl-2.5" : "text-gray-600 hover:bg-gray-50 hover:text-gray-800",
 							].join(" ")}
 						>
 							<span className="text-gray-400 mr-1.5 tabular-nums">{String(i + 1).padStart(2, "0")}</span>
@@ -315,8 +486,8 @@ export function OutlineRenderer({ markdown, audience }: { markdown: string; audi
 					const theme = audience === "trainer" ? trainerTheme(s.title) : { gradient: "from-[#1677ff] to-[#0958d9]", ring: "ring-blue-100", icon: BookOpen }
 					const Icon = theme.icon
 					return (
-						<section key={s.id} id={s.id} className="brand-card rounded-xl overflow-hidden scroll-mt-20">
-							<header className={`px-5 py-3 bg-gradient-to-r ${theme.gradient} text-white flex items-center gap-2.5`}>
+						<section key={s.id} id={s.id} className="outline-chapter scroll-mt-20">
+							<header className="outline-chapter-header">
 								<div className={`w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center ring-2 ${theme.ring}`}>
 									<Icon className="w-4 h-4" />
 								</div>
@@ -325,7 +496,7 @@ export function OutlineRenderer({ markdown, audience }: { markdown: string; audi
 									<div className="text-[15px] font-semibold">{s.title}</div>
 								</div>
 							</header>
-							<div className="px-5 py-4">{s.blocks.map((b, idx) => renderBlock(b, idx, audience))}</div>
+							<div className="outline-chapter-body">{s.blocks.map((b, idx) => renderBlock(b, idx, audience))}</div>
 						</section>
 					)
 				})}
