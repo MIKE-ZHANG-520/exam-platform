@@ -176,7 +176,6 @@ export async function POST(req: NextRequest, { params }: Params) {
         content_md,
         title: outlineTitle,
         status: "published",
-        reviewed_by: sess.id,
       })
       .select("id, audience, title, content_md, status, created_at")
       .single();

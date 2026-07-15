@@ -223,7 +223,7 @@ async function handleStart(
         difficulty,
         total_count: 0,
         status: "draft",
-        reviewed_by: userId,
+        owner_id: userId,
       })
       .select("id")
       .single();
