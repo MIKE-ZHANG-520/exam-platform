@@ -22,9 +22,9 @@ export default function LoginPage() {
 function LoginForm() {
 	const router = useRouter()
 	const sp = useSearchParams()
-	const [username, setUsername] = useState("admin")
-	const [password, setPassword] = useState("admin123")
-	const [remember, setRemember] = useState(true)
+	const [username, setUsername] = useState("")
+	const [password, setPassword] = useState("")
+	const [remember, setRemember] = useState(false)
 	const [loading, setLoading] = useState(false)
 
 	const submit = async () => {
@@ -139,12 +139,6 @@ function LoginForm() {
 						>
 							{loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />登录中...</> : "登 录"}
 						</Button>
-
-						<div className="mt-6 rounded-lg bg-[#f5f7fa] border border-dashed border-gray-200 p-3 text-xs text-gray-500 leading-relaxed">
-							<div className="text-gray-600 font-medium mb-1">演示账号</div>
-							<div>超级管理员：<span className="font-mono">admin / admin123</span></div>
-							<div>普通管理员：<span className="font-mono">trainer / trainer123</span></div>
-						</div>
 					</div>
 				</div>
 			</div>
