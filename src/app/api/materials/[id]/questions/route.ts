@@ -29,80 +29,78 @@ const EXPLANATION_SPEC = `**解析必须采用三段式结构**（用 "——" �
 - **原因分析**：为什么正确答案是对的，错误选项错在哪，引用具体规范条款号（如"JGJ80-2016 第 4.2.3 条"）
 - **保命口诀**：8-16 字朗朗上口的口诀，帮助工人记住这个知识点`;
 
-const EASY_PROMPT = `${SAFETY_EXPERT_ROLE}
+/* ── 分批 Prompt：每次只生成 10 题，避免超长输出被截断 ── */
 
-【任务】基于给定的建筑施工安全材料出**简易题库**共 40 道题，用于一线工人上岗培训考核。
+const EASY_BATCH_PROMPT = `${SAFETY_EXPERT_ROLE}
 
-一、题型与数量
-- 20 道单选题（type: "single"）：4 个选项 A/B/C/D，只有 1 个正确答案
-- 20 道判断题（type: "judge"）：选项固定 [{"key":"A","text":"正确"},{"key":"B","text":"错误"}]，answer 为 ["A"] 或 ["B"]
+【任务】基于给定的建筑施工安全材料出**简易题库**，本次只出 10 道题。
 
-二、风险等级分布（必须严格达标）
-- **高风险题（risk_level: "high"）占比 ≥ 40%**：必考的安全红线、致死性作业风险（高处坠落、坍塌、触电、机械伤害、起重伤害、火灾爆炸）
-- 中风险题（risk_level: "medium"）约 35%：常见违章、防护缺失、程序不规范
-- 低风险题（risk_level: "low"）约 25%：常识性、劳动纪律、标识识别
+一、题型要求
+- 5 道单选题（type: "single"）：4 个选项 A/B/C/D，只有 1 个正确答案
+- 5 道判断题（type: "judge"）：选项固定 [{"key":"A","text":"正确"},{"key":"B","text":"错误"}]，answer 为 ["A"] 或 ["B"]
 
-三、题目生动化要求（核心）
-1. **场景故事化**：所有题目必须基于真实工地场景改编，题干里有人物、有情节、有具体环境。禁止使用"下列说法正确的是"这种干巴巴的题干。
-   - 正确示范："小王在 3 楼脚手架上搬运钢管时，安全带挂在身边的横杆上。突然横杆松动，小王连同钢管一起滑向边缘。以下哪种做法是正确的？"
-   - 错误示范："关于安全带使用，下列说法正确的是？"
-2. **事故改编题**：每 10 道题中至少 3 道改编自真实事故案例，题干先简述事故经过（有人名、有时间、有地点），再提问。
-3. **看图辨隐患题**：判断题中至少 5 道是"场景描述+隐患识别"题型——用文字描述一个施工现场画面（安全帽佩戴、脚手架搭设、临时用电、机械操作等），让工人找出隐患或判断做法是否正确。
-4. **错误选项迷惑性**：错误选项必须是工地上真实常见的错误做法，不是凭空捏造的明显错误。四个选项看起来都应该"像那么回事"。
-5. **单选规范题**：单选题里至少 3 道涉及具体规范条款号（如"根据 JGJ80，安全带的正确使用高度为？"）
+二、风险等级
+- 高风险题（risk_level: "high"）占比 ≥ 40%：安全红线、致死性风险（高处坠落、坍塌、触电等）
+- 中风险（risk_level: "medium"）：常见违章、防护缺失
+- 低风险（risk_level: "low"）：常识性、标识识别
 
-四、每题字段（**严格按此 JSON schema**）
+三、题目生动化要求
+1. **场景故事化**：所有题目基于真实工地场景改编，题干有人物、有情节、有具体环境。禁止"下列说法正确的是"。
+2. **事故改编题**：至少 3 道改编自真实事故案例，题干先简述事故经过（有人名、时间、地点），再提问。
+3. **看图辨隐患题**：判断题中至少 1 道是"场景描述+隐患识别"题型。
+4. **错误选项迷惑性**：错误选项是工地上真实常见的错误做法，不是明显错误。
+
+四、每题字段（严格按 JSON schema）
 {
   "type": "single" | "judge",
-  "content": "题干（场景题可 150 字内，紧扣工人实操场景，有人物有画面）",
+  "content": "题干（场景题可 150 字内，紧扣工人实操场景）",
   "options": [{"key":"A","text":"..."},...],
   "answer": ["A"],
   "risk_level": "high" | "medium" | "low",
-  "tag": "简短标签，如 '高处作业' / '临时用电' / '脚手架' / '模板工程' / '机械操作' / '劳动纪律' 等",
+  "tag": "简短标签",
   "explanation": "三段式解析"
 }
 
 五、${EXPLANATION_SPEC}
 
-六、输出严格 JSON 数组，禁止 Markdown 代码块外的任何说明文字。`;
+六、输出严格 JSON 数组（10 个对象），禁止 Markdown 代码块外的任何说明文字。`;
 
-const MEDIUM_PROMPT = `${SAFETY_EXPERT_ROLE}
+const MEDIUM_BATCH_PROMPT = `${SAFETY_EXPERT_ROLE}
 
-【任务】基于给定的建筑施工安全材料出**中等题库**共 40 道，用于班组长/技术工人考核。
+【任务】基于给定的建筑施工安全材料出**中等题库**，本次只出 10 道题。
 
-一、题型与数量
-- 16 道单选题（type: "single"）：4 个选项 A/B/C/D，1 个正确答案
-- 12 道多选题（type: "multiple"）：4 个选项 A/B/C/D，2-4 个正确答案。至少 6 道为**综合场景题**（题干先描述一个施工场景，再问该场景下正确/必须采取的多项措施）
-- 12 道判断题（type: "judge"）：选项固定 [{"key":"A","text":"正确"},{"key":"B","text":"错误"}]。至少 4 道是现场图片场景描述题
+一、题型要求
+- 4 道单选题（type: "single"）：4 个选项 A/B/C/D，1 个正确答案
+- 3 道多选题（type: "multiple"）：4 个选项 A/B/C/D，2-4 个正确答案。至少 1 道综合场景题
+- 3 道判断题（type: "judge"）：选项固定 [{"key":"A","text":"正确"},{"key":"B","text":"错误"}]。至少 1 道场景描述题
 
-二、题目生动化要求（核心）
-1. **场景故事化**：所有题目必须基于真实工地场景改编，题干里有人物、有情节、有具体环境。禁止使用"下列说法正确的是"这种干巴巴的题干。
-2. **事故改编题**：每 10 道题中至少 3 道改编自真实事故案例，题干先给出事故经过（有人名、有时间、有地点），再问事故直接原因/根本原因/应采取的措施。
-3. **看图辨隐患题**：判断题中至少 4 道是"场景描述+隐患识别"题型——用文字描述一个施工现场画面，让答题者找出隐患。
-4. **错误选项迷惑性**：错误选项必须是工地上真实常见的错误做法，不是凭空捏造的明显错误。
-5. **事故案例分析题**：单选题里至少 3 道是事故案例分析题——题干先给出一起施工事故的简要经过，问事故直接原因/根本原因/应采取的措施。
-6. **危大工程题**：多选题里至少 3 道涉及危大工程管控（脚手架、模板支撑、深基坑、起重吊装、高处作业、临时用电等）。
-7. **规范引用**：至少 5 道题必须引用具体规范条款。
+二、题目生动化要求
+1. **场景故事化**：所有题目基于真实工地场景改编，题干有人物、有情节、有具体环境。禁止"下列说法正确的是"。
+2. **事故改编题**：至少 3 道改编自真实事故案例。
+3. **看图辨隐患题**：判断题中至少 1 道是"场景描述+隐患识别"题型。
+4. **错误选项迷惑性**：错误选项是工地上真实常见的错误做法。
+5. **规范引用**：至少 1 道题引用具体规范条款号。
 
-三、风险等级分布
-- **高风险题（risk_level: "high"）占比 ≥ 40%**
-- 中风险题约 35%
-- 低风险题约 25%
+三、风险等级
+- 高风险题（risk_level: "high"）占比 ≥ 40%
+- 中风险约 35%，低风险约 25%
 
 四、每题字段
 {
   "type": "single" | "multiple" | "judge",
-  "content": "题干（场景题/案例题可 200 字内，有人物有画面）",
+  "content": "题干（场景题可 200 字内）",
   "options": [{"key":"A","text":"..."},...],
   "answer": ["A","C"],
   "risk_level": "high" | "medium" | "low",
-  "tag": "如 '高处作业' / '危大工程' / '事故分析' / '临时用电' 等",
+  "tag": "简短标签",
   "explanation": "三段式解析"
 }
 
 五、${EXPLANATION_SPEC}
 
-六、输出严格 JSON 数组，禁止 Markdown 代码块外的任何说明文字。`;
+六、输出严格 JSON 数组（10 个对象），禁止 Markdown 代码块外的任何说明文字。`;
+
+const NUM_BATCHES = 4;
 
 function sanitizeQuestions(raw: RawQuestion[]): RawQuestion[] {
   return raw
@@ -123,6 +121,68 @@ function sanitizeQuestions(raw: RawQuestion[]): RawQuestion[] {
       risk_level: (q.risk_level as RiskLevel) || "medium",
       tag: q.tag ? String(q.tag) : null,
     })) as RawQuestion[];
+}
+
+/**
+ * 调用 LLM 生成一批题目（10 题），带重试。
+ * 第一次失败时第二次用简化 prompt 重试。
+ */
+async function generateBatch(
+  llm: ReturnType<typeof makeLLM>,
+  systemPrompt: string,
+  userPrompt: string,
+  batchLabel: string,
+): Promise<RawQuestion[]> {
+  let lastErr = "";
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const retryHint = attempt > 0
+        ? "\n\n【重要】上次输出解析失败，请确保输出的是**纯 JSON 数组**，以 [ 开头、] 结尾，不要有任何多余文字。"
+        : "";
+
+      const response = await llm.invoke(
+        [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt + retryHint },
+        ],
+        { model: DEFAULT_MODEL, temperature: 0.6 },
+      );
+
+      const raw = response.content?.trim() ?? "";
+      if (!raw) {
+        lastErr = "模型返回空内容";
+        continue;
+      }
+
+      let parsed: unknown;
+      try {
+        parsed = extractJson<RawQuestion[]>(raw);
+      } catch {
+        lastErr = `JSON 解析失败（返回内容前 200 字: ${raw.slice(0, 200)}）`;
+        continue;
+      }
+
+      if (!Array.isArray(parsed)) {
+        lastErr = "模型返回的不是 JSON 数组";
+        continue;
+      }
+
+      const cleaned = sanitizeQuestions(parsed);
+      if (cleaned.length === 0) {
+        lastErr = "清洗后无有效题目";
+        continue;
+      }
+
+      console.log(`[questions] ${batchLabel} 第 ${attempt + 1} 次尝试成功，获取 ${cleaned.length} 题`);
+      return cleaned;
+    } catch (err) {
+      lastErr = err instanceof Error ? err.message : String(err);
+      console.error(`[questions] ${batchLabel} 第 ${attempt + 1} 次异常:`, lastErr);
+    }
+  }
+
+  throw new Error(`${batchLabel} 生成失败: ${lastErr}`);
 }
 
 // POST /api/materials/:id/questions
@@ -149,30 +209,38 @@ export async function POST(req: NextRequest, { params }: Params) {
     }
 
     const llm = makeLLM(req.headers);
-    const systemPrompt = difficulty === "easy" ? EASY_PROMPT : MEDIUM_PROMPT;
-    const userPrompt = `培训材料《${material.title}》：\n${material.content_text.slice(0, 14000)}\n\n请依据以上内容出题，严格按 JSON 数组格式输出。`;
+    const systemPrompt = difficulty === "easy" ? EASY_BATCH_PROMPT : MEDIUM_BATCH_PROMPT;
+    // 截断到 8000 字，避免 input 过长
+    const materialSlice = material.content_text.slice(0, 8000);
+    const baseUserPrompt = `培训材料《${material.title}》：\n${materialSlice}\n\n请依据以上内容出题，严格按 JSON 数组格式输出。`;
 
-    const response = await llm.invoke(
-      [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      { model: DEFAULT_MODEL, temperature: 0.6 },
-    );
+    // ── 分批生成：4 次 × 10 题 = 最多 40 题 ──
+    const batchResults: RawQuestion[] = [];
+    const batchErrors: string[] = [];
 
-    let parsed: RawQuestion[];
-    try {
-      parsed = extractJson<RawQuestion[]>(response.content);
-      if (!Array.isArray(parsed)) throw new Error("模型返回的不是 JSON 数组");
-    } catch (e) {
-      const em = e instanceof Error ? e.message : String(e);
-      return NextResponse.json({ error: `解析题库 JSON 失败: ${em}` }, { status: 500 });
+    for (let i = 0; i < NUM_BATCHES; i++) {
+      const batchLabel = `第 ${i + 1}/${NUM_BATCHES} 批`;
+      try {
+        const batchPrompt = `${baseUserPrompt}\n\n【本次要求】这是第 ${i + 1} 批，请生成与前面批次**不重复**的 10 道题。`;
+        const batch = await generateBatch(llm, systemPrompt, batchPrompt, batchLabel);
+        batchResults.push(...batch);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        batchErrors.push(`${batchLabel}: ${msg}`);
+        console.error(`[questions] ${batchLabel} 最终失败:`, msg);
+      }
     }
 
-    const cleaned = sanitizeQuestions(parsed);
-    if (cleaned.length === 0) {
-      return NextResponse.json({ error: "生成的题库为空" }, { status: 500 });
+    // 即使部分批次失败，只要有题目就继续
+    if (batchResults.length === 0) {
+      const detail = batchErrors.join("; ");
+      return NextResponse.json(
+        { error: `题库生成失败，所有批次均未产出有效题目。${detail}` },
+        { status: 500 },
+      );
     }
+
+    const cleaned = sanitizeQuestions(batchResults);
 
     // 覆盖同类型旧题库
     const { data: oldBanks } = await client
@@ -228,14 +296,18 @@ export async function POST(req: NextRequest, { params }: Params) {
       if (qErr) return NextResponse.json({ error: qErr.message }, { status: 500 });
     }
 
-    // 统计风险分布，返回给前端
+    // 统计风险分布
     const distribution = {
       high: cleaned.filter((q) => q.risk_level === "high").length,
       medium: cleaned.filter((q) => q.risk_level === "medium").length,
       low: cleaned.filter((q) => q.risk_level === "low").length,
     };
 
-    return NextResponse.json({ bank, count: cleaned.length, distribution });
+    const warning = batchErrors.length > 0
+      ? `（${batchErrors.length} 批次失败，实际生成 ${cleaned.length} 题）`
+      : "";
+
+    return NextResponse.json({ bank, count: cleaned.length, distribution, warning });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: msg }, { status: 500 });

@@ -22,9 +22,71 @@ export function extractJson<T = unknown>(text: string): T {
   const firstBrace = raw.search(/[[{]/);
   if (firstBrace === -1) throw new Error("模型返回内容不含 JSON");
   const candidate = raw.slice(firstBrace);
-  const lastBrace = Math.max(candidate.lastIndexOf("}"), candidate.lastIndexOf("]"));
-  const jsonStr = candidate.slice(0, lastBrace + 1);
-  return JSON.parse(jsonStr) as T;
+
+  // 1. 尝试找到完整的 JSON（正常情况）
+  const lastClose = Math.max(candidate.lastIndexOf("}"), candidate.lastIndexOf("]"));
+  if (lastClose > 0) {
+    try {
+      return JSON.parse(candidate.slice(0, lastClose + 1)) as T;
+    } catch {
+      // 继续到下面的截断修复逻辑
+    }
+  }
+
+  // 2. 截断修复：如果 JSON 数组被截断（如模型输出超过 max_tokens）
+  //    尝试找到最后一个完整对象的 } 闭合位置，截断后补上 ]
+  if (candidate.startsWith("[")) {
+    // 从后往前找最后一个完整闭合的 }
+    let depth = 0;
+    let lastValidEnd = -1;
+    let inString = false;
+    let escape = false;
+
+    for (let i = 0; i < candidate.length; i++) {
+      const ch = candidate[i];
+      if (escape) {
+        escape = false;
+        continue;
+      }
+      if (ch === "\\") {
+        escape = true;
+        continue;
+      }
+      if (ch === '"') {
+        inString = !inString;
+        continue;
+      }
+      if (inString) continue;
+
+      if (ch === "{") depth++;
+      if (ch === "}") {
+        depth--;
+        if (depth === 0) {
+          lastValidEnd = i; // 记录最后一个完整对象的位置
+        }
+      }
+    }
+
+    if (lastValidEnd > 0) {
+      // 截取到最后一个完整对象，补上 ]
+      const truncated = candidate.slice(0, lastValidEnd + 1);
+      // 去掉末尾多余的逗号
+      const cleaned = truncated.replace(/,\s*$/, "");
+      try {
+        return JSON.parse(cleaned + "]") as T;
+      } catch {
+        // 最后兜底
+      }
+    }
+  }
+
+  // 3. 最后兜底：尝试直接 parse 原始文本
+  try {
+    return JSON.parse(candidate) as T;
+  } catch (e) {
+    const em = e instanceof Error ? e.message : String(e);
+    throw new Error(`JSON 解析失败: ${em}（内容前 200 字: ${candidate.slice(0, 200)}）`);
+  }
 }
 
 export const DEFAULT_MODEL = "doubao-seed-1-8-251228";
