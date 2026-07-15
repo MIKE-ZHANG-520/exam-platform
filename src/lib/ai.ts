@@ -63,7 +63,7 @@ export async function generateText(
       bot_id: EHSLAW_BOT_ID,
       user_id: "exam_platform",
       stream: false,
-      auto_save_history: false,
+      auto_save_history: true,
       additional_messages: [{ role: "user", content: combined, content_type: "text" }],
     }),
   });
