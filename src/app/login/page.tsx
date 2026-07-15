@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { Suspense, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { GraduationCap, Loader2, Lock, ShieldCheck, User } from "lucide-react"
 import { toast } from "sonner"
@@ -9,7 +9,17 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 
+export const dynamic = "force-dynamic"
+
 export default function LoginPage() {
+	return (
+		<Suspense fallback={null}>
+			<LoginForm />
+		</Suspense>
+	)
+}
+
+function LoginForm() {
 	const router = useRouter()
 	const sp = useSearchParams()
 	const [username, setUsername] = useState("admin")
