@@ -45,7 +45,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (body.status === "published") update.published_at = new Date().toISOString();
   }
   const client = db();
-  const { data, error } = await client.from("question_banks").update(update).eq("id", id).select().single();
+  const { data, error } = await client.from("question_banks").update(update).eq("id", id).select().maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ bank: data });
 }

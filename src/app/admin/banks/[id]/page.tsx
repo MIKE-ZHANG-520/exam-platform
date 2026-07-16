@@ -87,7 +87,7 @@ export default function BankDetailPage() {
   const onPublish = async () => {
     setPublishing(true);
     try {
-      await apiPatch(`/api/banks/${id}`, { action: "publish" });
+      await apiPatch(`/api/banks/${id}`, { status: "published" });
       toast.success("题库已发布");
       load();
     } catch (e) {
