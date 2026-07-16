@@ -52,6 +52,7 @@ const EASY_BATCH_PROMPT = `${SAFETY_EXPERT_ROLE}
 三、题目生动化
 1. 场景故事化：题干有人物、有情节，禁止"下列说法正确的是"。
 2. 错误选项贴近工地真实错误做法。
+3. **5 道题必须覆盖 5 个完全不同的知识点/场景**，禁止围绕同一主题反复出题。
 
 四、每题字段
 {
@@ -81,6 +82,7 @@ const MEDIUM_BATCH_PROMPT = `${SAFETY_EXPERT_ROLE}
 1. 场景故事化，有人物有情节。
 2. 至少 2 道改编自真实事故案例。
 3. 错误选项贴近工地真实错误做法。
+4. **5 道题必须覆盖 5 个完全不同的知识点/场景**，禁止围绕同一主题反复出题。
 
 三、风险等级
 - 高风险题（risk_level: "high"）占比 ≥ 40%
@@ -96,11 +98,11 @@ const MEDIUM_BATCH_PROMPT = `${SAFETY_EXPERT_ROLE}
   "explanation": "三段式解析"
 }
 
-六、${EXPLANATION_SPEC}
+五、${EXPLANATION_SPEC}
 
-七、输出严格 JSON 数组（5 个对象），禁止任何多余说明文字。`;
+六、输出严格 JSON 数组（5 个对象），禁止任何多余说明文字。`;
 
-const TOTAL_BATCHES = 8;
+const TOTAL_BATCHES = 10;
 
 function sanitizeQuestions(raw: RawQuestion[]): RawQuestion[] {
   return raw
@@ -248,7 +250,7 @@ async function handleStart(
   const noteBlock = note
     ? `\n\n【教研特别要求 · 优先级最高】\n${note}\n（以上要求由管理员针对本次生成设定，必须严格执行；与通用规则冲突时以此为准。）`
     : "";
-  const userPrompt = `培训材料《${material.title}》：\n${materialSlice}${noteBlock}\n\n【本次批次】这是第 ${batchIndex + 1} 批（共 ${TOTAL_BATCHES} 批），请生成 5 道与其他批次不重复的题目。请从材料的第 ${batchIndex + 1} 个不同角度或章节切入。严格按 JSON 数组格式输出。`;
+  const userPrompt = `培训材料《${material.title}》：\n${materialSlice}${noteBlock}\n\n【本次批次】这是第 ${batchIndex + 1} 批（共 ${TOTAL_BATCHES} 批）。\n\n【去重强制规则】\n1. 本批 5 道题必须从材料的【不同章节/不同知识点/不同风险场景】切入，禁止 5 道题都围绕同一个知识点。\n2. 题干场景、人物、情节必须与之前批次完全不同（例如：批次 1 用"电工张三在配电房"，批次 2 就用"焊工李四在脚手架"）。\n3. 如果材料有多个章节，请优先覆盖尚未出题的章节。\n\n严格按 JSON 数组格式输出 5 道题。`;
 
   // 只创建 Bot 对话，立即返回（<3s）
   console.log(`[questions] start batch ${batchIndex + 1}/${TOTAL_BATCHES}`);
@@ -326,16 +328,29 @@ async function handleFinalize(body: {
     }, { status: 200 });
   }
 
-  // 获取当前最大 order_no
+  // 获取当前最大 order_no + 已有题目内容（用于去重）
   const { data: existing } = await client
     .from("questions")
-    .select("order_no")
+    .select("order_no, content")
     .eq("bank_id", bankId)
-    .order("order_no", { ascending: false })
-    .limit(1);
+    .order("order_no", { ascending: false });
   const startOrder = existing && existing.length > 0 ? Number(existing[0].order_no) || 0 : 0;
 
-  const rows = cleaned.map((q, idx) => {
+  // 内容去重：归一化后比对，过滤掉与已有题目高度相似的新题
+  const normalize = (s: string) => s.replace(/[\s\p{P}\p{S}]/gu, "").toLowerCase();
+  const existingContents = new Set((existing ?? []).map((q) => normalize(q.content || "")));
+  const deduped = cleaned.filter((q) => {
+    const norm = normalize(q.content);
+    if (existingContents.has(norm)) return false;
+    // 与同批次其他新题也去重
+    if (cleaned.some((other) => other !== q && normalize(other.content) === norm)) return false;
+    return true;
+  });
+  if (deduped.length < cleaned.length) {
+    console.warn(`[questions] batch ${batchIndex + 1} 去重：${cleaned.length} → ${deduped.length}`);
+  }
+
+  const rows = deduped.map((q, idx) => {
     const explanation = q.explanation
       ? q.risk_level && q.tag
         ? `【${riskLabel(q.risk_level)} · ${q.tag}】\n${q.explanation}`
@@ -365,7 +380,7 @@ async function handleFinalize(body: {
     })
     .eq("id", bankId);
 
-  console.log(`[questions] finalize batch ${batchIndex + 1}/${TOTAL_BATCHES} +${rows.length} 题, 累计 ${total} 题`);
+  console.log(`[questions] finalize batch ${batchIndex + 1}/${TOTAL_BATCHES} +${rows.length} 题（去重前 ${cleaned.length}）, 累计 ${total} 题`);
 
   return NextResponse.json({
     generated: rows.length,
