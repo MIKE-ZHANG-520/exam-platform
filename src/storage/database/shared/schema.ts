@@ -63,6 +63,7 @@ export const outlines = pgTable(
 		title: varchar("title", { length: 255 }),
 		content_md: text("content_md").notNull(),                // markdown 提纲全文
 		status: varchar("status", { length: 20 }).notNull().default("draft"), // draft / published
+		generation_note: text("generation_note"),                // 生成时的教研备注（用户输入）
 		published_at: timestamp("published_at", { withTimezone: true }),
 		created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 		updated_at: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
@@ -83,6 +84,7 @@ export const question_banks = pgTable(
 		difficulty: varchar("difficulty", { length: 20 }).notNull(), // easy / medium
 		total_count: integer("total_count").notNull().default(0),
 		status: varchar("status", { length: 20 }).notNull().default("draft"), // draft / published
+		generation_note: text("generation_note"),                // 生成时的教研备注（用户输入）
 		owner_id: varchar("owner_id", { length: 36 }),
 		published_at: timestamp("published_at", { withTimezone: true }),
 		created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),

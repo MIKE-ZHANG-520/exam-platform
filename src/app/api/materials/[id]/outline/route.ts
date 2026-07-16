@@ -127,9 +127,11 @@ export async function POST(req: NextRequest, { params }: Params) {
 
 async function handleStart(
   materialId: string,
-  body: { audience?: "worker" | "trainer" },
+  body: { audience?: "worker" | "trainer"; note?: string },
 ): Promise<NextResponse> {
   const audience: "worker" | "trainer" = body.audience === "trainer" ? "trainer" : "worker";
+  const rawNote = typeof body.note === "string" ? body.note.trim() : "";
+  const note = rawNote.slice(0, 800);
 
   const client = db();
   const { data: material, error: mErr } = await client
@@ -144,9 +146,12 @@ async function handleStart(
   }
 
   const systemPrompt = audience === "worker" ? WORKER_PROMPT : TRAINER_PROMPT;
-  const userPrompt = `培训材料标题：《${material.title}》\n\n以下是原始材料内容（可能截断）：\n${material.content_text.slice(0, 12000)}\n\n请依据以上内容输出 Markdown 提纲。`;
+  const noteBlock = note
+    ? `\n\n【教研特别要求 · 优先级最高】\n${note}\n（以上要求由管理员针对本次生成设定，必须严格执行；与通用规则冲突时以此为准。）`
+    : "";
+  const userPrompt = `培训材料标题：《${material.title}》\n\n以下是原始材料内容（可能截断）：\n${material.content_text.slice(0, 12000)}${noteBlock}\n\n请依据以上内容输出 Markdown 提纲。`;
 
-  console.log(`[outline] start ${audience} for ${materialId}`);
+  console.log(`[outline] start ${audience} for ${materialId} note=${note ? "yes" : "no"}`);
   const handle = await startChat([
     { role: "system", content: systemPrompt },
     { role: "user", content: userPrompt },
@@ -156,6 +161,7 @@ async function handleStart(
   return NextResponse.json({
     chatId: handle.chatId,
     conversationId: handle.conversationId,
+    note: note || null,
   });
 }
 
@@ -180,12 +186,14 @@ async function handleFinalize(
     chatId?: string;
     conversationId?: string;
     audience?: "worker" | "trainer";
+    note?: string;
   },
 ): Promise<NextResponse> {
   if (!body.chatId || !body.conversationId) {
     return NextResponse.json({ error: "finalize 需要 chatId + conversationId" }, { status: 400 });
   }
   const audience: "worker" | "trainer" = body.audience === "trainer" ? "trainer" : "worker";
+  const note = typeof body.note === "string" ? body.note.trim().slice(0, 800) : "";
   const handle: ChatHandle = {
     chatId: body.chatId,
     conversationId: body.conversationId,
@@ -225,6 +233,7 @@ async function handleFinalize(
       content_md,
       title: outlineTitle,
       status: "published",
+      generation_note: note || null,
     })
     .select("id, audience, title, content_md, status, created_at")
     .single();

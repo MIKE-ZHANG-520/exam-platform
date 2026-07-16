@@ -36,17 +36,6 @@ const EXPLANATION_SPEC = `**解析必须采用三段式结构**（用 "——" �
 - **原因分析**：为什么正确答案是对的，错误选项错在哪
 - **保命口诀**：8-16 字朗朗上口的口诀`;
 
-const CLASSIFICATION_DIRECTIVE = `【分类识别强制要求】（本材料核心考点）
-1. 先通读材料，**提取所有分类维度**（如：一类红线/二类红线/一般红线、作业类型、罚款档位、管控措施差异等）。
-2. 在 tag 字段标注题目所属的分类（如 "一类红线-动火"、"二类红线-高处"、"罚款对比"、"管控措施对比"）。
-3. **分类识别题占比 ≥ 40%**，题型示例：
-   - "以下违章属于一类红线的是？" / "以下违章属于二类红线的是？"
-   - "老王在工地脚手架搭设高度 12m 时未系安全带，这属于一类还是二类红线？"
-   - "一类红线动火违章罚款多少？二类红线动火违章罚款多少？"
-   - "以下哪项属于一类红线管控措施？"
-4. 必须覆盖材料里的**每一个分类子项**（一类 10 类、二类 8 类都要出到，不能只挑几个）。
-5. 对比题（罚款金额、管控力度、审批流程差异）至少 1 道。`;
-
 const EASY_BATCH_PROMPT = `${SAFETY_EXPERT_ROLE}
 
 【任务】基于给定的建筑施工安全材料出**简易题库**，本次只出 5 道题。
@@ -55,32 +44,29 @@ const EASY_BATCH_PROMPT = `${SAFETY_EXPERT_ROLE}
 - 3 道单选题（type: "single"）：4 个选项 A/B/C/D，只有 1 个正确答案
 - 2 道判断题（type: "judge"）：选项固定 [{"key":"A","text":"正确"},{"key":"B","text":"错误"}]
 
-二、分类识别强制要求
-${CLASSIFICATION_DIRECTIVE}
-
-三、风险等级
+二、风险等级
 - 高风险题（risk_level: "high"）占比 ≥ 40%
 - 中风险（risk_level: "medium"）常见违章
 - 低风险（risk_level: "low"）常识性
 
-四、题目生动化
+三、题目生动化
 1. 场景故事化：题干有人物、有情节，禁止"下列说法正确的是"。
 2. 错误选项贴近工地真实错误做法。
 
-五、每题字段
+四、每题字段
 {
   "type": "single" | "judge",
   "content": "题干（≤ 120 字）",
   "options": [{"key":"A","text":"..."},...],
   "answer": ["A"],
   "risk_level": "high" | "medium" | "low",
-  "tag": "分类识别标签（如 一类红线-高处）",
+  "tag": "考点标签（如 高处坠落、临时用电、动火作业等）",
   "explanation": "三段式解析"
 }
 
-六、${EXPLANATION_SPEC}
+五、${EXPLANATION_SPEC}
 
-七、输出严格 JSON 数组（5 个对象），禁止任何多余说明文字。`;
+六、输出严格 JSON 数组（5 个对象），禁止任何多余说明文字。`;
 
 const MEDIUM_BATCH_PROMPT = `${SAFETY_EXPERT_ROLE}
 
@@ -91,25 +77,22 @@ const MEDIUM_BATCH_PROMPT = `${SAFETY_EXPERT_ROLE}
 - 2 道多选题（type: "multiple"）：2-4 个正确答案
 - 1 道判断题（type: "judge"）：选项固定 [{"key":"A","text":"正确"},{"key":"B","text":"错误"}]
 
-二、分类识别强制要求
-${CLASSIFICATION_DIRECTIVE}
-
-三、题目生动化
+二、题目生动化
 1. 场景故事化，有人物有情节。
 2. 至少 2 道改编自真实事故案例。
 3. 错误选项贴近工地真实错误做法。
 
-四、风险等级
+三、风险等级
 - 高风险题（risk_level: "high"）占比 ≥ 40%
 
-五、每题字段
+四、每题字段
 {
   "type": "single" | "multiple" | "judge",
   "content": "题干（≤ 150 字）",
   "options": [{"key":"A","text":"..."},...],
   "answer": ["A","C"],
   "risk_level": "high" | "medium" | "low",
-  "tag": "分类识别标签（如 一类红线-动火、罚款对比）",
+  "tag": "考点标签（如 高处坠落、临时用电、动火作业等）",
   "explanation": "三段式解析"
 }
 
@@ -196,11 +179,14 @@ async function handleStart(
     difficulty?: "easy" | "medium";
     batchIndex?: number;
     bankId?: string;
+    note?: string;
   },
   userId: string,
 ): Promise<NextResponse> {
   const difficulty: "easy" | "medium" = body.difficulty === "medium" ? "medium" : "easy";
   const batchIndex = typeof body.batchIndex === "number" ? body.batchIndex : 0;
+  const rawNote = typeof body.note === "string" ? body.note.trim() : "";
+  const note = rawNote.slice(0, 800);
 
   if (batchIndex < 0 || batchIndex >= TOTAL_BATCHES) {
     return NextResponse.json({ error: `batchIndex 必须在 0-${TOTAL_BATCHES - 1}` }, { status: 400 });
@@ -241,6 +227,7 @@ async function handleStart(
         total_count: 0,
         status: "draft",
         owner_id: userId,
+        generation_note: note || null,
       })
       .select("id")
       .single();
@@ -258,7 +245,10 @@ async function handleStart(
   // 构造 prompt
   const systemPrompt = difficulty === "easy" ? EASY_BATCH_PROMPT : MEDIUM_BATCH_PROMPT;
   const materialSlice = material.content_text.slice(0, 6000);
-  const userPrompt = `培训材料《${material.title}》：\n${materialSlice}\n\n【本次要求】这是第 ${batchIndex + 1} 批（共 ${TOTAL_BATCHES} 批），请生成 5 道与其他批次不重复的题目。请从材料的第 ${batchIndex + 1} 个不同角度或章节切入。严格按 JSON 数组格式输出。`;
+  const noteBlock = note
+    ? `\n\n【教研特别要求 · 优先级最高】\n${note}\n（以上要求由管理员针对本次生成设定，必须严格执行；与通用规则冲突时以此为准。）`
+    : "";
+  const userPrompt = `培训材料《${material.title}》：\n${materialSlice}${noteBlock}\n\n【本次批次】这是第 ${batchIndex + 1} 批（共 ${TOTAL_BATCHES} 批），请生成 5 道与其他批次不重复的题目。请从材料的第 ${batchIndex + 1} 个不同角度或章节切入。严格按 JSON 数组格式输出。`;
 
   // 只创建 Bot 对话，立即返回（<3s）
   console.log(`[questions] start batch ${batchIndex + 1}/${TOTAL_BATCHES}`);

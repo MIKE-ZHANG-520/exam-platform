@@ -1,6 +1,6 @@
 {
   "name": "projects",
-  "version": "2.0.0-step1",
+  "version": "2.1.2",
   "private": true,
   "scripts": {
     "build": "bash ./scripts/build.sh",

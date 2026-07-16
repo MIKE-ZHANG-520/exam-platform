@@ -13,11 +13,90 @@ import { toast } from "sonner"
 import { ArrowLeft, Loader2, Sparkles, Pencil, Save, CheckCircle2, XCircle, ListTree, ShieldAlert } from "lucide-react"
 import { OutlineRenderer } from "@/components/admin/outline-renderer"
 
+// —— 生成要求预设模板（题库/提纲共用） ——
+const NOTE_TEMPLATES: { label: string; value: string }[] = [
+	{ label: "通用（AI 自由发挥）", value: "" },
+	{ label: "分类识别重点", value: "重点考察材料中提到的分级/分类概念（如一类/二类/一般红线的分类归属），分类识别题至少占 40%，覆盖所有分类子项，含分类对比题。" },
+	{ label: "操作规程强化", value: "重点考察操作步骤、执行顺序、禁忌行为与安全交底，情景题至少 50%，多考「该做什么／不该做什么」。" },
+	{ label: "数字记忆强化", value: "重点考察限值、周期、罚款金额、距离/高度、许可等级等数字，数字类题目至少 30%。" },
+	{ label: "应急处置重点", value: "重点考察应急处置步骤、疏散逃生路线、紧急联系人和上报流程，情景题为主。" },
+]
+
+function NoteComposer({
+	label,
+	note,
+	onChange,
+	disabled,
+}: {
+	label: string
+	note: string
+	onChange: (v: string) => void
+	disabled?: boolean
+}) {
+	const [expanded, setExpanded] = useState<boolean>(Boolean(note))
+	const matchedTemplate = NOTE_TEMPLATES.find((t) => t.value === note)?.label ?? "自定义"
+	return (
+		<div className="rounded-lg border border-dashed border-slate-300 bg-slate-50/60 p-3">
+			<button
+				type="button"
+				onClick={() => setExpanded((v) => !v)}
+				className="flex w-full items-center justify-between text-left"
+			>
+				<div className="flex items-center gap-2 text-sm">
+					<Sparkles className="h-4 w-4 text-blue-500" />
+					<span className="font-medium text-slate-700">{label}</span>
+					{note ? (
+						<Badge variant="secondary" className="ml-1 max-w-[220px] truncate">
+							{matchedTemplate}
+						</Badge>
+					) : (
+						<span className="text-xs text-slate-400">未填写 · AI 将自由发挥</span>
+					)}
+				</div>
+				<span className="text-xs text-blue-600">{expanded ? "收起" : "展开"}</span>
+			</button>
+			{expanded ? (
+				<div className="mt-3 space-y-2">
+					<div className="flex flex-wrap gap-1.5">
+						{NOTE_TEMPLATES.map((tpl) => (
+							<button
+								key={tpl.label}
+								type="button"
+								disabled={disabled}
+								onClick={() => onChange(tpl.value)}
+								className={`rounded-full border px-2.5 py-0.5 text-xs transition ${
+									note === tpl.value
+										? "border-blue-500 bg-blue-50 text-blue-700"
+										: "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+								}`}
+							>
+								{tpl.label}
+							</button>
+						))}
+					</div>
+					<Textarea
+						value={note}
+						onChange={(e) => onChange(e.target.value)}
+						placeholder="例如：本材料考试重点是分清一类/二类红线，分类识别题不少于 40%。不填则 AI 自由出题。"
+						rows={3}
+						disabled={disabled}
+						className="text-sm"
+					/>
+					<div className="text-[11px] text-slate-400">
+						最多 500 字。备注会保存到本次生成的记录中，下次自动回填。
+					</div>
+				</div>
+			) : null}
+		</div>
+	)
+}
+
 interface Outline {
 	id: string
 	audience: "worker" | "trainer"
 	content_md: string
 	status: "draft" | "published"
+	generation_note?: string | null
 	created_at: string
 }
 
@@ -27,6 +106,8 @@ interface Bank {
 	difficulty: "easy" | "medium"
 	total_count: number
 	status?: string
+	generation_note?: string | null
+	created_at?: string
 }
 
 interface MaterialMetadata {
@@ -68,10 +149,15 @@ function OutlineCard({
 	const [draft, setDraft] = useState(outline?.content_md || "")
 	const [saving, setSaving] = useState(false)
 	const [generating, setGenerating] = useState(false)
+	const [note, setNote] = useState<string>("")
 
 	useEffect(() => {
 		setDraft(outline?.content_md || "")
 	}, [outline?.content_md])
+
+	useEffect(() => {
+		setNote(outline?.generation_note || "")
+	}, [outline?.generation_note])
 
 	const label = audience === "worker" ? "工人版" : "培训师版"
 
@@ -97,7 +183,7 @@ function OutlineCard({
 			setGenStage("已提交 · 等待 AI 思考")
 			const startRes = await apiPost<{ chatId: string; conversationId: string }>(
 				`/api/materials/${materialId}/outline`,
-				{ action: "start", audience },
+				{ action: "start", audience, note: note.trim() },
 			)
 			console.warn("[outline] start", startRes)
 
@@ -127,6 +213,7 @@ function OutlineCard({
 				chatId: startRes.chatId,
 				conversationId: startRes.conversationId,
 				audience,
+				note: note.trim(),
 			})
 			toast.success(`${label}提纲已生成并自动发布`)
 			onRefresh()
@@ -190,19 +277,26 @@ function OutlineCard({
 
 	if (!outline) {
 		return (
-			<div className="brand-card rounded-xl p-10 text-center">
-				<div className="w-14 h-14 mx-auto mb-3 rounded-2xl bg-gradient-to-br from-[#eff6ff] to-[#dbeafe] flex items-center justify-center">
-					<Sparkles className="w-6 h-6 text-[#1677ff]" />
+			<div className="brand-card rounded-xl p-6 sm:p-10">
+				<div className="text-center">
+					<div className="w-14 h-14 mx-auto mb-3 rounded-2xl bg-gradient-to-br from-[#eff6ff] to-[#dbeafe] flex items-center justify-center">
+						<Sparkles className="w-6 h-6 text-[#1677ff]" />
+					</div>
+					<div className="text-[15px] font-medium text-gray-800">暂无{label}提纲</div>
+					<div className="text-sm text-gray-500 mt-1 mb-4">让 AI 基于材料内容为你生成一份高质量提纲</div>
 				</div>
-				<div className="text-[15px] font-medium text-gray-800">暂无{label}提纲</div>
-				<div className="text-sm text-gray-500 mt-1 mb-4">让 AI 基于材料内容为你生成一份高质量提纲</div>
-				<Button className="bg-[#1677ff] hover:bg-[#0958d9]" onClick={generate} disabled={generating}>
-					{generating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
-					AI 生成{label}提纲
-				</Button>
-				{generating && genStage && (
-					<div className="text-xs text-[#1677ff] mt-3">{genStage}</div>
-				)}
+				<div className="max-w-lg mx-auto text-left">
+					<NoteComposer label={`${label}提纲生成要求`} note={note} onChange={setNote} disabled={generating} />
+				</div>
+				<div className="mt-4 text-center">
+					<Button className="bg-[#1677ff] hover:bg-[#0958d9]" onClick={generate} disabled={generating}>
+						{generating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
+						AI 生成{label}提纲
+					</Button>
+					{generating && genStage && (
+						<div className="text-xs text-[#1677ff] mt-3">{genStage}</div>
+					)}
+				</div>
 			</div>
 		)
 	}
@@ -225,8 +319,7 @@ function OutlineCard({
 						)}
 					</Badge>
 					<span className="text-xs text-gray-400">生成于 {new Date(outline.created_at).toLocaleString()}</span>
-				</div>
-				<div className="flex gap-2">
+				</div>				<div className="flex gap-2">
 					{!editing && (
 						<>
 							<Button size="sm" variant="outline" onClick={() => setEditing(true)}>
@@ -267,6 +360,17 @@ function OutlineCard({
 				</div>
 			</div>
 
+			{!editing && (
+				<details className="rounded-lg bg-slate-50 border border-slate-100 text-xs">
+					<summary className="cursor-pointer select-none px-3 py-2 text-slate-600 hover:text-slate-800">
+						生成要求（重新生成时使用 · 选填）{note ? <span className="text-[#1677ff] ml-2">· 已填写</span> : null}
+					</summary>
+					<div className="px-3 pb-3">
+						<NoteComposer label={`${label}重新生成要求`} note={note} onChange={setNote} disabled={generating} />
+					</div>
+				</details>
+			)}
+
 			{editing ? (
 				<Textarea
 					value={draft}
@@ -289,6 +393,18 @@ export default function MaterialDetailPage() {
 	const [genBankElapsed, setGenBankElapsed] = useState(0)
 	const [genBankBatch, setGenBankBatch] = useState(0)
 	const [genBankTotal, setGenBankTotal] = useState(0)
+	const [bankNote, setBankNote] = useState("")
+
+	// 从最近一次生成的题库中回填备注
+	useEffect(() => {
+		if (!data) return
+		const latest = data.banks.length > 0 ? data.banks[data.banks.length - 1] : undefined
+		const savedNote = latest?.generation_note
+		if (typeof savedNote === "string" && savedNote.trim() && !bankNote) {
+			setBankNote(savedNote)
+		}
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [data?.banks?.length])
 
 	const load = useCallback(() => {
 		setLoading(true)
@@ -302,7 +418,7 @@ export default function MaterialDetailPage() {
 		load()
 	}, [load])
 
-	const generateBank = async (difficulty: "easy" | "medium") => {
+	const generateBank = async (difficulty: "easy" | "medium", note: string) => {
 		setGenBank(difficulty)
 		setGenBankElapsed(0)
 		setGenBankBatch(0)
@@ -377,6 +493,7 @@ export default function MaterialDetailPage() {
 						difficulty,
 						batchIndex: i,
 						bankId,
+						note: i === 0 ? note : undefined,
 					})
 					const chatId = startResp.chatId as string
 					const conversationId = startResp.conversationId as string
@@ -481,7 +598,7 @@ export default function MaterialDetailPage() {
 				<div className="flex gap-2 flex-wrap">
 					<Button
 						variant="outline"
-						onClick={() => generateBank("easy")}
+						onClick={() => generateBank("easy", bankNote)}
 						disabled={genBank !== null}
 					>
 						{genBank === "easy" ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Sparkles className="w-4 h-4 mr-1.5" />}
@@ -491,7 +608,7 @@ export default function MaterialDetailPage() {
 					</Button>
 					<Button
 						variant="outline"
-						onClick={() => generateBank("medium")}
+						onClick={() => generateBank("medium", bankNote)}
 						disabled={genBank !== null}
 					>
 						{genBank === "medium" ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Sparkles className="w-4 h-4 mr-1.5" />}
@@ -501,6 +618,28 @@ export default function MaterialDetailPage() {
 					</Button>
 				</div>
 			</div>
+
+			{/* 题库生成要求（简易/中等共用） */}
+			<details className="bg-white rounded-xl border border-gray-100 px-4 py-3 shadow-sm">
+				<summary className="cursor-pointer text-sm font-medium text-slate-700 select-none flex items-center gap-2">
+					<Sparkles className="w-4 h-4 text-primary" />
+					生成要求（选填，简易/中等共用）
+					{bankNote.trim() && (
+						<Badge variant="secondary" className="ml-auto text-[11px]">已设定</Badge>
+					)}
+				</summary>
+				<div className="mt-3">
+					<NoteComposer
+						label="题库生成要求"
+						note={bankNote}
+						onChange={setBankNote}
+						disabled={genBank !== null}
+					/>
+					<div className="text-[11px] text-slate-500 mt-2">
+						此备注会作为下一次「AI 生成简易/中等题库」的补充要求。留空则 AI 依据材料自动决定题型分布。
+					</div>
+				</div>
+			</details>
 
 			{data.material.metadata && (
 				<Card className="border-0 brand-card">
