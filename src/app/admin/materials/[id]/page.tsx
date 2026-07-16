@@ -33,7 +33,8 @@ function NoteComposer({
 	onChange: (v: string) => void
 	disabled?: boolean
 }) {
-	const [expanded, setExpanded] = useState<boolean>(Boolean(note))
+	// 默认展开，外层 details 已控制整体可见性，避免两层折叠
+	const [expanded, setExpanded] = useState<boolean>(true)
 	const matchedTemplate = NOTE_TEMPLATES.find((t) => t.value === note)?.label ?? "自定义"
 	return (
 		<div className="rounded-lg border border-dashed border-slate-300 bg-slate-50/60 p-3">
@@ -285,9 +286,22 @@ function OutlineCard({
 					<div className="text-[15px] font-medium text-gray-800">暂无{label}提纲</div>
 					<div className="text-sm text-gray-500 mt-1 mb-4">让 AI 基于材料内容为你生成一份高质量提纲</div>
 				</div>
-				<div className="max-w-lg mx-auto text-left">
-					<NoteComposer label={`${label}提纲生成要求`} note={note} onChange={setNote} disabled={generating} />
-				</div>
+				{/* 生成要求（选填）· 与题库卡片视觉统一 */}
+				<details open className="mx-auto max-w-lg bg-white rounded-xl border border-gray-100 px-4 py-3 shadow-sm mb-4">
+					<summary className="cursor-pointer text-sm font-medium text-slate-700 select-none flex items-center gap-2">
+						<Sparkles className="w-4 h-4 text-primary" />
+						生成要求（选填）
+						{note.trim() && (
+							<Badge variant="secondary" className="ml-auto text-[11px]">已设定</Badge>
+						)}
+					</summary>
+					<div className="mt-3">
+						<NoteComposer label={`${label}提纲生成要求`} note={note} onChange={setNote} disabled={generating} />
+						<div className="text-[11px] text-slate-500 mt-2">
+							此备注会作为「AI 生成{label}提纲」的补充要求。留空则 AI 依据材料自动决定重点。
+						</div>
+					</div>
+				</details>
 				<div className="mt-4 text-center">
 					<Button className="bg-[#1677ff] hover:bg-[#0958d9]" onClick={generate} disabled={generating}>
 						{generating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
@@ -361,12 +375,19 @@ function OutlineCard({
 			</div>
 
 			{!editing && (
-				<details className="rounded-lg bg-slate-50 border border-slate-100 text-xs">
-					<summary className="cursor-pointer select-none px-3 py-2 text-slate-600 hover:text-slate-800">
-						生成要求（重新生成时使用 · 选填）{note ? <span className="text-[#1677ff] ml-2">· 已填写</span> : null}
+				<details className="bg-white rounded-xl border border-gray-100 px-4 py-3 shadow-sm">
+					<summary className="cursor-pointer text-sm font-medium text-slate-700 select-none flex items-center gap-2">
+						<Sparkles className="w-4 h-4 text-primary" />
+						生成要求（选填，重新生成时使用）
+						{note.trim() && (
+							<Badge variant="secondary" className="ml-auto text-[11px]">已设定</Badge>
+						)}
 					</summary>
-					<div className="px-3 pb-3">
+					<div className="mt-3">
 						<NoteComposer label={`${label}重新生成要求`} note={note} onChange={setNote} disabled={generating} />
+						<div className="text-[11px] text-slate-500 mt-2">
+							此备注会作为下一次「AI 重新生成{label}提纲」的补充要求。点击上方「重新生成」按钮生效。
+						</div>
 					</div>
 				</details>
 			)}
