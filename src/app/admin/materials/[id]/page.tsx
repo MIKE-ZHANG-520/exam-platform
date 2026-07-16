@@ -75,16 +75,67 @@ function OutlineCard({
 
 	const label = audience === "worker" ? "工人版" : "培训师版"
 
+	const [genStage, setGenStage] = useState<string>("")
+
 	const generate = async () => {
 		setGenerating(true)
+		setGenStage("准备中")
+		const t0 = Date.now()
 		try {
-			await apiPost(`/api/materials/${materialId}/outline`, { audience })
+			// 预热 FaaS
+			try {
+				const ctrl = new AbortController()
+				const to = setTimeout(() => ctrl.abort(), 8000)
+				await fetch("/api/warmup", { method: "POST", signal: ctrl.signal }).finally(() =>
+					clearTimeout(to),
+				)
+			} catch (e) {
+				console.warn("[outline] warmup 失败（不影响主流程）:", e)
+			}
+
+			// Step 1: start
+			setGenStage("已提交 · 等待 AI 思考")
+			const startRes = await apiPost<{ chatId: string; conversationId: string }>(
+				`/api/materials/${materialId}/outline`,
+				{ action: "start", audience },
+			)
+			console.warn("[outline] start", startRes)
+
+			// Step 2: poll（最长 120s）
+			const pollMax = 60
+			const pollInterval = 2000
+			let ready = false
+			for (let i = 0; i < pollMax; i++) {
+				await new Promise((r) => setTimeout(r, pollInterval))
+				const p = await apiPost<{ status: string; ready: boolean }>(
+					`/api/materials/${materialId}/outline`,
+					{ action: "poll", chatId: startRes.chatId, conversationId: startRes.conversationId },
+				)
+				setGenStage(`AI 生成中 · ${Math.round(((Date.now() - t0) / 1000))}s`)
+				if (p.ready) {
+					ready = true
+					if (p.status === "failed") throw new Error("Bot 生成失败，请重试")
+					break
+				}
+			}
+			if (!ready) throw new Error("生成超时（120s 内未完成），请重试")
+
+			// Step 3: finalize
+			setGenStage("落库中")
+			await apiPost(`/api/materials/${materialId}/outline`, {
+				action: "finalize",
+				chatId: startRes.chatId,
+				conversationId: startRes.conversationId,
+				audience,
+			})
 			toast.success(`${label}提纲已生成并自动发布`)
 			onRefresh()
 		} catch (e) {
+			console.error("[outline] generate failed:", e)
 			toast.error((e as Error).message)
 		} finally {
 			setGenerating(false)
+			setGenStage("")
 		}
 	}
 
@@ -149,6 +200,9 @@ function OutlineCard({
 					{generating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
 					AI 生成{label}提纲
 				</Button>
+				{generating && genStage && (
+					<div className="text-xs text-[#1677ff] mt-3">{genStage}</div>
+				)}
 			</div>
 		)
 	}
