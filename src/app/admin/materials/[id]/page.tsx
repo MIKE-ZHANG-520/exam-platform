@@ -15,7 +15,7 @@ import { OutlineRenderer } from "@/components/admin/outline-renderer"
 
 // —— 生成要求预设模板（题库/提纲共用） ——
 const NOTE_TEMPLATES: { label: string; value: string }[] = [
-	{ label: "通用（才子佳人自由发挥）", value: "" },
+	{ label: "通用（AI 自由发挥）", value: "" },
 	{ label: "分类识别重点", value: "重点考察材料中提到的分级/分类概念（如一类/二类/一般红线的分类归属），分类识别题至少占 40%，覆盖所有分类子项，含分类对比题。" },
 	{ label: "操作规程强化", value: "重点考察操作步骤、执行顺序、禁忌行为与安全交底，情景题至少 50%，多考「该做什么／不该做什么」。" },
 	{ label: "数字记忆强化", value: "重点考察限值、周期、罚款金额、距离/高度、许可等级等数字，数字类题目至少 30%。" },
@@ -50,7 +50,7 @@ function NoteComposer({
 							{matchedTemplate}
 						</Badge>
 					) : (
-						<span className="text-xs text-slate-400">未填写 · 才子佳人将自由发挥</span>
+						<span className="text-xs text-slate-400">未填写 · AI 将自由发挥</span>
 					)}
 				</div>
 				<span className="text-xs text-blue-600">{expanded ? "收起" : "展开"}</span>
@@ -77,7 +77,7 @@ function NoteComposer({
 					<Textarea
 						value={note}
 						onChange={(e) => onChange(e.target.value)}
-						placeholder="例如：本材料考试重点是分清一类/二类红线，分类识别题不少于 40%。不填则才子佳人自由出题。"
+						placeholder="例如：本材料考试重点是分清一类/二类红线，分类识别题不少于 40%。不填则 AI 自由出题。"
 						rows={3}
 						disabled={disabled}
 						className="text-sm"
@@ -180,7 +180,7 @@ function OutlineCard({
 			}
 
 			// Step 1: start
-			setGenStage("已提交 · 等待才子佳人思考")
+			setGenStage("已提交 · 等待 AI 思考")
 			const startRes = await apiPost<{ chatId: string; conversationId: string }>(
 				`/api/materials/${materialId}/outline`,
 				{ action: "start", audience, note: note.trim() },
@@ -197,7 +197,7 @@ function OutlineCard({
 					`/api/materials/${materialId}/outline`,
 					{ action: "poll", chatId: startRes.chatId, conversationId: startRes.conversationId },
 				)
-				setGenStage(`才子佳人生成中 · ${Math.round(((Date.now() - t0) / 1000))}s`)
+				setGenStage(`AI 生成中 · ${Math.round(((Date.now() - t0) / 1000))}s`)
 				if (p.ready) {
 					ready = true
 					if (p.status === "failed") throw new Error("Bot 生成失败，请重试")
@@ -283,7 +283,7 @@ function OutlineCard({
 						<Sparkles className="w-6 h-6 text-[#1677ff]" />
 					</div>
 					<div className="text-[15px] font-medium text-gray-800">暂无{label}提纲</div>
-					<div className="text-sm text-gray-500 mt-1 mb-4">让才子佳人基于材料内容为你生成一份高质量提纲</div>
+					<div className="text-sm text-gray-500 mt-1 mb-4">让 AI 基于材料内容为你生成一份高质量提纲</div>
 				</div>
 				<div className="max-w-lg mx-auto text-left">
 					<NoteComposer label={`${label}提纲生成要求`} note={note} onChange={setNote} disabled={generating} />
@@ -291,7 +291,7 @@ function OutlineCard({
 				<div className="mt-4 text-center">
 					<Button className="bg-[#1677ff] hover:bg-[#0958d9]" onClick={generate} disabled={generating}>
 						{generating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
-						才子佳人生成{label}提纲
+						AI 生成{label}提纲
 					</Button>
 					{generating && genStage && (
 						<div className="text-xs text-[#1677ff] mt-3">{genStage}</div>
@@ -604,7 +604,7 @@ export default function MaterialDetailPage() {
 						{genBank === "easy" ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Sparkles className="w-4 h-4 mr-1.5" />}
 						{genBank === "easy"
 							? `生成中 ${genBankBatch}/8 · 已产出 ${genBankTotal} 题（${genBankElapsed}s）`
-							: "才子佳人生成简易题库"}
+							: "AI 生成简易题库"}
 					</Button>
 					<Button
 						variant="outline"
@@ -614,7 +614,7 @@ export default function MaterialDetailPage() {
 						{genBank === "medium" ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Sparkles className="w-4 h-4 mr-1.5" />}
 						{genBank === "medium"
 							? `生成中 ${genBankBatch}/8 · 已产出 ${genBankTotal} 题（${genBankElapsed}s）`
-							: "才子佳人生成中等题库"}
+							: "AI 生成中等题库"}
 					</Button>
 				</div>
 			</div>
@@ -636,7 +636,7 @@ export default function MaterialDetailPage() {
 						disabled={genBank !== null}
 					/>
 					<div className="text-[11px] text-slate-500 mt-2">
-						此备注会作为下一次「才子佳人生成简易/中等题库」的补充要求。留空则才子佳人依据材料自动决定题型分布。
+						此备注会作为下一次「AI 生成简易/中等题库」的补充要求。留空则 AI 依据材料自动决定题型分布。
 					</div>
 				</div>
 			</details>
@@ -647,7 +647,7 @@ export default function MaterialDetailPage() {
 						<CardTitle className="text-base flex items-center gap-2">
 							<ShieldAlert className="w-4 h-4 text-[#f97316]" />
 							安全要点识别
-							<Badge variant="outline" className="ml-1 text-[10px] text-gray-500 font-normal">才子佳人识别 · 仅供参考</Badge>
+							<Badge variant="outline" className="ml-1 text-[10px] text-gray-500 font-normal">AI 识别 · 仅供参考</Badge>
 						</CardTitle>
 					</CardHeader>
 					<CardContent className="space-y-3">

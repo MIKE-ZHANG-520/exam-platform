@@ -37,6 +37,46 @@ git checkout main
 
 ---
 
+## v2.1.4 · 2026-07-16
+
+**回滚 v2.1.3 越权改动：只保留底部署名**
+
+### 背景
+- v2.1.3 越权把全站 15+ 处"AI xx"文案改成了"才子佳人 xx"。
+- 用户明确指令是：**只改底部署名**（Powered by AI → Powered by 才子佳人），其他 UI 文案不动。
+- 承认对指令的理解出错，本版还原。
+
+### 本次变更
+- **保留 2 处**（v2.1.3 中符合用户意图的部分）：
+  - `登录页页脚`：`Powered by AI` → **`Powered by 才子佳人`** ✓
+  - `侧边栏底部`：`v3.0 · AI Powered` → **`v3.0 · 才子佳人 Powered`** ✓
+- **还原 13 处**（v2.1.3 中越权替换的部分）：
+  - 登录页副标题、三点介绍：恢复 "AI 生成"
+  - 材料列表 description / 按钮：恢复 "AI"
+  - 题库列表 description / 空态：恢复 "AI"
+  - 材料详情页所有 10 处：恢复 "AI"（生成按钮、进度提示、备注模板、占位符、安全要点等）
+  - Metadata description：恢复 "AI"
+  - `lib/ai.ts` 错误信息：恢复 "AI"
+
+### Logo 精简（v2.1.3 保留下来的正确改动）
+- 悬浮 `GlobalLogo` 保留，其他位置的浅色 `BrandBadge` 不再显示（v2.1.3 已删除）。
+- CZJR 橙金色的视觉更新保留。
+
+### 影响文件
+- `src/app/login/page.tsx`（副标题 + 三点）
+- `src/app/layout.tsx`（description）
+- `src/app/admin/banks/page.tsx`
+- `src/app/admin/materials/page.tsx`
+- `src/app/admin/materials/[id]/page.tsx`（10 处）
+- `src/lib/ai.ts`
+- `package.json` version 2.1.3 → 2.1.4
+
+### 教训
+- 用户下指令说"A 换成 B"时，先看清指令上下文（截图红框在哪个位置），不要自动扩展到全站。
+- 品牌换装类改动务必先跟用户确认范围。
+
+---
+
 ## v2.1.3 · 2026-07-16
 
 **品牌换装：AI → 才子佳人 + Logo 精简**

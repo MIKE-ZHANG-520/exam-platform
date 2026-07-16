@@ -99,7 +99,7 @@ export default function MaterialsPage() {
 
 	return (
 		<div className="space-y-6">
-			<PageHeader title="培训材料" description="支持 docx / xlsx / pdf / pptx / md，上传后才子佳人自动解析并可生成提纲与题库" />
+			<PageHeader title="培训材料" description="支持 docx / xlsx / pdf / pptx / md，上传后 AI 自动解析并可生成提纲与题库" />
 
 			{/* 上传区（拖拽 + 点击） */}
 			<div
@@ -200,7 +200,7 @@ export default function MaterialsPage() {
 										<Link href={`/admin/materials/${m.id}`} className="flex-1">
 											<Button size="sm" className="w-full bg-[#1677ff] hover:bg-[#0958d9]">
 												<Sparkles className="w-3.5 h-3.5 mr-1" />
-												查看/才子佳人生成
+												查看/AI 生成
 												<ArrowRight className="w-3.5 h-3.5 ml-auto" />
 											</Button>
 										</Link>

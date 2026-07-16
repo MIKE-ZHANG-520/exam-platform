@@ -73,13 +73,13 @@ function LoginForm() {
 							智慧培训考试平台
 						</h1>
 						<p className="mt-3 text-white/85 text-sm leading-relaxed max-w-xs">
-							才子佳人生成培训提纲与题库，扫码考试、即时评分、班组洞察，让企业安全培训看得见、抓得住。
+							AI 生成培训提纲与题库，扫码考试、即时评分、班组洞察，让企业安全培训看得见、抓得住。
 						</p>
 					</div>
 					<div className="relative space-y-3 text-sm text-white/85">
 						<div className="flex items-center gap-2"><ShieldCheck className="w-4 h-4" /> 两级权限管控，数据分部门隔离</div>
 						<div className="flex items-center gap-2"><ShieldCheck className="w-4 h-4" /> 试卷快照 + 身份证加密，安全合规</div>
-						<div className="flex items-center gap-2"><ShieldCheck className="w-4 h-4" /> 才子佳人生成 + 人工审核，双重把关</div>
+						<div className="flex items-center gap-2"><ShieldCheck className="w-4 h-4" /> AI 生成 + 人工审核，双重把关</div>
 					</div>
 				</div>
 
