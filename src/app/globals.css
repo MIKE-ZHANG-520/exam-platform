@@ -488,3 +488,130 @@ body {
   background: var(--brand-primary-50);
   color: var(--brand-primary);
 }
+
+/* ============ 全局 Logo 徽章（才子佳人-制作）============ */
+@keyframes czjr-shimmer {
+  0% {
+    transform: translateX(-120%) skewX(-20deg);
+  }
+  100% {
+    transform: translateX(280%) skewX(-20deg);
+  }
+}
+
+@keyframes czjr-border-glow {
+  0%,
+  100% {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35),
+      0 0 0 1px rgba(245, 158, 11, 0.55),
+      0 0 12px rgba(245, 158, 11, 0.25);
+  }
+  50% {
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.45),
+      0 0 0 1px rgba(251, 191, 36, 0.9),
+      0 0 22px rgba(251, 191, 36, 0.55);
+  }
+}
+
+@keyframes czjr-dot-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 6px 1px rgba(251, 146, 60, 0.7);
+    opacity: 1;
+  }
+  50% {
+    box-shadow: 0 0 12px 3px rgba(251, 146, 60, 0.95);
+    opacity: 0.9;
+  }
+}
+
+.czjr-logo-wrap {
+  position: fixed;
+  right: 12px;
+  bottom: 12px;
+  z-index: 2147483000;
+  pointer-events: none;
+  user-select: none;
+}
+
+@media (min-width: 768px) {
+  .czjr-logo-wrap {
+    right: 16px;
+    bottom: 16px;
+  }
+}
+
+.czjr-logo {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #111827 0%, #1f2937 100%);
+  border: 1px solid rgba(245, 158, 11, 0.6);
+  overflow: hidden;
+  animation: czjr-border-glow 2.6s ease-in-out infinite;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC",
+    "Microsoft YaHei", "Segoe UI", sans-serif;
+}
+
+.czjr-logo::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 40%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.28) 45%,
+    rgba(251, 191, 36, 0.42) 50%,
+    rgba(255, 255, 255, 0.28) 55%,
+    transparent 100%
+  );
+  animation: czjr-shimmer 2.4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.czjr-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #fb923c;
+  animation: czjr-dot-pulse 1.8s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+.czjr-brand {
+  position: relative;
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+}
+
+.czjr-sep {
+  position: relative;
+  width: 3px;
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.75);
+  flex-shrink: 0;
+}
+
+.czjr-suffix {
+  position: relative;
+  color: #ffffff;
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+
+@media print {
+  .czjr-logo-wrap {
+    display: none;
+  }
+}
+
