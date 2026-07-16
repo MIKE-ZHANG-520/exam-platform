@@ -508,6 +508,7 @@ export default function MaterialDetailPage() {
 						<CardTitle className="text-base flex items-center gap-2">
 							<ShieldAlert className="w-4 h-4 text-[#f97316]" />
 							安全要点识别
+							<Badge variant="outline" className="ml-1 text-[10px] text-gray-500 font-normal">AI 识别 · 仅供参考</Badge>
 						</CardTitle>
 					</CardHeader>
 					<CardContent className="space-y-3">
@@ -516,7 +517,7 @@ export default function MaterialDetailPage() {
 								{data.material.metadata.summary}
 							</div>
 						)}
-						<div className="grid gap-3 md:grid-cols-2">
+						<div className="grid gap-3 md:grid-cols-3">
 							{data.material.metadata.risk_level && (
 								<div>
 									<div className="text-[11px] text-gray-500 mb-1">风险等级</div>
@@ -545,18 +546,6 @@ export default function MaterialDetailPage() {
 										{data.material.metadata.applicable_positions.map((p) => (
 											<Badge key={p} variant="outline" className="bg-[#eff6ff] text-[#1677ff] border-[#dbeafe]">
 												{p}
-											</Badge>
-										))}
-									</div>
-								</div>
-							)}
-							{data.material.metadata.regulations && data.material.metadata.regulations.length > 0 && (
-								<div>
-									<div className="text-[11px] text-gray-500 mb-1">涉及法规/标准</div>
-									<div className="flex flex-wrap gap-1">
-										{data.material.metadata.regulations.map((r) => (
-											<Badge key={r} variant="outline" className="text-gray-700">
-												{r}
 											</Badge>
 										))}
 									</div>
