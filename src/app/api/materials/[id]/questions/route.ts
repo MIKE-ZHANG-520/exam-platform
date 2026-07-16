@@ -36,6 +36,17 @@ const EXPLANATION_SPEC = `**解析必须采用三段式结构**（用 "——" �
 - **原因分析**：为什么正确答案是对的，错误选项错在哪
 - **保命口诀**：8-16 字朗朗上口的口诀`;
 
+const CLASSIFICATION_DIRECTIVE = `【分类识别强制要求】（本材料核心考点）
+1. 先通读材料，**提取所有分类维度**（如：一类红线/二类红线/一般红线、作业类型、罚款档位、管控措施差异等）。
+2. 在 tag 字段标注题目所属的分类（如 "一类红线-动火"、"二类红线-高处"、"罚款对比"、"管控措施对比"）。
+3. **分类识别题占比 ≥ 40%**，题型示例：
+   - "以下违章属于一类红线的是？" / "以下违章属于二类红线的是？"
+   - "老王在工地脚手架搭设高度 12m 时未系安全带，这属于一类还是二类红线？"
+   - "一类红线动火违章罚款多少？二类红线动火违章罚款多少？"
+   - "以下哪项属于一类红线管控措施？"
+4. 必须覆盖材料里的**每一个分类子项**（一类 10 类、二类 8 类都要出到，不能只挑几个）。
+5. 对比题（罚款金额、管控力度、审批流程差异）至少 1 道。`;
+
 const EASY_BATCH_PROMPT = `${SAFETY_EXPERT_ROLE}
 
 【任务】基于给定的建筑施工安全材料出**简易题库**，本次只出 5 道题。
@@ -44,29 +55,32 @@ const EASY_BATCH_PROMPT = `${SAFETY_EXPERT_ROLE}
 - 3 道单选题（type: "single"）：4 个选项 A/B/C/D，只有 1 个正确答案
 - 2 道判断题（type: "judge"）：选项固定 [{"key":"A","text":"正确"},{"key":"B","text":"错误"}]
 
-二、风险等级
+二、分类识别强制要求
+${CLASSIFICATION_DIRECTIVE}
+
+三、风险等级
 - 高风险题（risk_level: "high"）占比 ≥ 40%
 - 中风险（risk_level: "medium"）常见违章
 - 低风险（risk_level: "low"）常识性
 
-三、题目生动化
+四、题目生动化
 1. 场景故事化：题干有人物、有情节，禁止"下列说法正确的是"。
 2. 错误选项贴近工地真实错误做法。
 
-四、每题字段
+五、每题字段
 {
   "type": "single" | "judge",
   "content": "题干（≤ 120 字）",
   "options": [{"key":"A","text":"..."},...],
   "answer": ["A"],
   "risk_level": "high" | "medium" | "low",
-  "tag": "简短标签",
+  "tag": "分类识别标签（如 一类红线-高处）",
   "explanation": "三段式解析"
 }
 
-五、${EXPLANATION_SPEC}
+六、${EXPLANATION_SPEC}
 
-六、输出严格 JSON 数组（5 个对象），禁止任何多余说明文字。`;
+七、输出严格 JSON 数组（5 个对象），禁止任何多余说明文字。`;
 
 const MEDIUM_BATCH_PROMPT = `${SAFETY_EXPERT_ROLE}
 
@@ -77,28 +91,31 @@ const MEDIUM_BATCH_PROMPT = `${SAFETY_EXPERT_ROLE}
 - 2 道多选题（type: "multiple"）：2-4 个正确答案
 - 1 道判断题（type: "judge"）：选项固定 [{"key":"A","text":"正确"},{"key":"B","text":"错误"}]
 
-二、题目生动化
+二、分类识别强制要求
+${CLASSIFICATION_DIRECTIVE}
+
+三、题目生动化
 1. 场景故事化，有人物有情节。
 2. 至少 2 道改编自真实事故案例。
 3. 错误选项贴近工地真实错误做法。
 
-三、风险等级
+四、风险等级
 - 高风险题（risk_level: "high"）占比 ≥ 40%
 
-四、每题字段
+五、每题字段
 {
   "type": "single" | "multiple" | "judge",
   "content": "题干（≤ 150 字）",
   "options": [{"key":"A","text":"..."},...],
   "answer": ["A","C"],
   "risk_level": "high" | "medium" | "low",
-  "tag": "简短标签",
+  "tag": "分类识别标签（如 一类红线-动火、罚款对比）",
   "explanation": "三段式解析"
 }
 
-五、${EXPLANATION_SPEC}
+六、${EXPLANATION_SPEC}
 
-六、输出严格 JSON 数组（5 个对象），禁止任何多余说明文字。`;
+七、输出严格 JSON 数组（5 个对象），禁止任何多余说明文字。`;
 
 const TOTAL_BATCHES = 8;
 
