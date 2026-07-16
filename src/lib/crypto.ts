@@ -44,3 +44,45 @@ export function maskPhone(phone: string): string {
   if (s.length < 7) return s;
   return `${s.slice(0, 3)}****${s.slice(-4)}`;
 }
+
+// 身份证/手机号等固定值的稳定哈希（用于查重、唯一索引查询）
+// AES-GCM 每次 IV 不同产出不同密文，无法用密文做等值匹配，必须配一个稳定 hash
+export function stableHash(plain: string): string {
+  if (!plain) return "";
+  return crypto.createHash("sha256").update(plain.trim()).digest("hex");
+}
+
+// 简单身份证格式校验：18 位纯数字 or 17 位+X
+export function isValidIdCard(idCard: string): boolean {
+  if (!idCard) return false;
+  const s = idCard.trim();
+  return /^[0-9]{17}[0-9Xx]$/.test(s) || /^[0-9]{15}$/.test(s);
+}
+
+// 从身份证提取出生年
+export function extractBirthYear(idCard: string): number | null {
+  if (!idCard) return null;
+  const s = idCard.trim();
+  if (/^[0-9]{18}$|^[0-9]{17}X$/i.test(s)) {
+    const y = parseInt(s.slice(6, 10), 10);
+    return isNaN(y) ? null : y;
+  }
+  if (/^[0-9]{15}$/.test(s)) {
+    const y = parseInt("19" + s.slice(6, 8), 10);
+    return isNaN(y) ? null : y;
+  }
+  return null;
+}
+
+// 从身份证判断性别（倒数第二位奇=男 偶=女）
+export function extractGender(idCard: string): "男" | "女" | null {
+  if (!idCard) return null;
+  const s = idCard.trim();
+  let seq: string | null = null;
+  if (/^[0-9]{18}$|^[0-9]{17}X$/i.test(s)) seq = s.slice(16, 17);
+  else if (/^[0-9]{15}$/.test(s)) seq = s.slice(14, 15);
+  if (!seq) return null;
+  const n = parseInt(seq, 10);
+  if (isNaN(n)) return null;
+  return n % 2 === 1 ? "男" : "女";
+}

@@ -174,6 +174,96 @@ export const exam_records = pgTable(
 	]
 );
 
+// ==================== 培训矩阵体系 · 第一层：组织维度 ====================
+
+// 项目/工程表
+export const projects = pgTable(
+	"projects",
+	{
+		id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+		name: varchar("name", { length: 200 }).notNull(),
+		code: varchar("code", { length: 60 }).unique(),           // 项目编号（可选，唯一）
+		location: varchar("location", { length: 255 }),           // 所在地
+		manager: varchar("manager", { length: 60 }),              // 项目负责人姓名
+		manager_phone: varchar("manager_phone", { length: 30 }),  // 负责人手机
+		start_date: varchar("start_date", { length: 10 }),        // 开工日期 YYYY-MM-DD
+		end_date: varchar("end_date", { length: 10 }),            // 竣工日期
+		status: varchar("status", { length: 20 }).notNull().default("active"),
+		// active / paused / finished / archived
+		description: text("description"),
+		metadata: jsonb("metadata"),                              // 扩展字段
+		owner_id: varchar("owner_id", { length: 36 }),            // 创建人
+		created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+		updated_at: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+	},
+	(table) => [
+		index("projects_status_idx").on(table.status),
+		index("projects_name_idx").on(table.name),
+	],
+);
+
+// 班组表
+export const teams = pgTable(
+	"teams",
+	{
+		id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+		project_id: varchar("project_id", { length: 36 }).notNull().references(() => projects.id, { onDelete: "cascade" }),
+		name: varchar("name", { length: 100 }).notNull(),         // 班组名称
+		leader: varchar("leader", { length: 60 }),                // 班组长姓名
+		leader_phone: varchar("leader_phone", { length: 30 }),
+		main_work_type: varchar("main_work_type", { length: 60 }),// 主要工种
+		member_count: integer("member_count").notNull().default(0), // 缓存人数，写入 worker 时更新
+		status: varchar("status", { length: 20 }).notNull().default("active"),
+		// active / disbanded
+		description: text("description"),
+		created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+		updated_at: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+	},
+	(table) => [
+		index("teams_project_id_idx").on(table.project_id),
+		index("teams_status_idx").on(table.status),
+	],
+);
+
+// 工人花名册
+export const workers = pgTable(
+	"workers",
+	{
+		id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+		name: varchar("name", { length: 60 }).notNull(),
+		gender: varchar("gender", { length: 10 }),                // 男/女
+		birth_year: integer("birth_year"),                        // 出生年
+		phone: varchar("phone", { length: 30 }),
+		id_card_encrypted: varchar("id_card_encrypted", { length: 255 }).notNull().unique(),
+		id_card_mask: varchar("id_card_mask", { length: 30 }).notNull(),
+		id_card_hash: varchar("id_card_hash", { length: 64 }).notNull().unique(),
+		// SHA-256(id_card) 用于查重和查询（加密后每次不同，无法直接用密文查询）
+		work_type: varchar("work_type", { length: 60 }),          // 工种
+		project_id: varchar("project_id", { length: 36 }).references(() => projects.id, { onDelete: "set null" }),
+		team_id: varchar("team_id", { length: 36 }).references(() => teams.id, { onDelete: "set null" }),
+		hire_date: varchar("hire_date", { length: 10 }),          // 入职日期
+		leave_date: varchar("leave_date", { length: 10 }),        // 离职日期
+		status: varchar("status", { length: 20 }).notNull().default("active"),
+		// active / left（离职）/ transferred（借调）
+		emergency_contact: varchar("emergency_contact", { length: 60 }),
+		emergency_phone: varchar("emergency_phone", { length: 30 }),
+		health_cert_expires_at: varchar("health_cert_expires_at", { length: 10 }), // 健康证有效期
+		remark: text("remark"),
+		metadata: jsonb("metadata"),
+		created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+		updated_at: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+	},
+	(table) => [
+		index("workers_project_id_idx").on(table.project_id),
+		index("workers_team_id_idx").on(table.team_id),
+		index("workers_work_type_idx").on(table.work_type),
+		index("workers_status_idx").on(table.status),
+		index("workers_name_idx").on(table.name),
+		index("workers_phone_idx").on(table.phone),
+		index("workers_id_card_hash_idx").on(table.id_card_hash),
+	],
+);
+
 // 讲师评价
 export const evaluations = pgTable(
 	"evaluations",

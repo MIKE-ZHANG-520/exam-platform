@@ -21,6 +21,11 @@ import {
 	Loader2,
 	Eye,
 	EyeOff,
+	FolderKanban,
+	Users2,
+	UserSquare2,
+	Menu,
+	X,
 } from "lucide-react"
 import { toast } from "sonner"
 import { BrandBadge } from "@/components/brand-badge"
@@ -57,15 +62,19 @@ interface NavItem {
 	label: string
 	icon: React.ComponentType<{ className?: string }>
 	adminOnly?: boolean
+	group?: string
 }
 
 const NAV: NavItem[] = [
-	{ href: "/admin/dashboard", label: "数据看板", icon: LayoutDashboard },
-	{ href: "/admin/materials", label: "培训材料", icon: FileText },
-	{ href: "/admin/banks", label: "题库管理", icon: NotebookPen },
-	{ href: "/admin/exams", label: "考试试卷", icon: BookOpen },
-	{ href: "/admin/records", label: "考试记录", icon: BarChart3 },
-	{ href: "/admin/users", label: "用户管理", icon: Users, adminOnly: true },
+	{ href: "/admin/dashboard", label: "数据看板", icon: LayoutDashboard, group: "总览" },
+	{ href: "/admin/projects", label: "项目管理", icon: FolderKanban, group: "组织架构" },
+	{ href: "/admin/teams", label: "班组管理", icon: Users2, group: "组织架构" },
+	{ href: "/admin/workers", label: "花名册", icon: UserSquare2, group: "组织架构" },
+	{ href: "/admin/materials", label: "培训材料", icon: FileText, group: "培训业务" },
+	{ href: "/admin/banks", label: "题库管理", icon: NotebookPen, group: "培训业务" },
+	{ href: "/admin/exams", label: "考试试卷", icon: BookOpen, group: "培训业务" },
+	{ href: "/admin/records", label: "考试记录", icon: BarChart3, group: "培训业务" },
+	{ href: "/admin/users", label: "用户管理", icon: Users, adminOnly: true, group: "系统" },
 ]
 
 function initials(name: string) {
@@ -78,6 +87,9 @@ function getBreadcrumbs(pathname: string): { label: string; href?: string }[] {
 		{ label: "首页", href: "/admin/dashboard" },
 	]
 	if (pathname === "/admin/dashboard") crumbs.push({ label: "数据看板" })
+	else if (pathname.startsWith("/admin/projects")) crumbs.push({ label: "项目管理" })
+	else if (pathname.startsWith("/admin/teams")) crumbs.push({ label: "班组管理" })
+	else if (pathname.startsWith("/admin/workers")) crumbs.push({ label: "花名册" })
 	else if (pathname.startsWith("/admin/materials")) {
 		crumbs.push({ label: "培训材料", href: "/admin/materials" })
 		if (pathname !== "/admin/materials") crumbs.push({ label: "材料详情" })
@@ -154,15 +166,43 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
 	const visibleNav = NAV.filter((n) => !n.adminOnly || me?.role === "admin")
 	const breadcrumbs = getBreadcrumbs(pathname)
+	const [mobileNavOpen, setMobileNavOpen] = useState(false)
+	useEffect(() => { setMobileNavOpen(false) }, [pathname])
+
+	// 分组渲染
+	const grouped: Array<{ group: string; items: NavItem[] }> = []
+	for (const it of visibleNav) {
+		const g = it.group ?? "其他"
+		let bucket = grouped.find((x) => x.group === g)
+		if (!bucket) {
+			bucket = { group: g, items: [] }
+			grouped.push(bucket)
+		}
+		bucket.items.push(it)
+	}
 
 	return (
 		<>
 		<div className="min-h-screen flex bg-[#f5f7fa]">
+			{/* 移动端遮罩 */}
+			{mobileNavOpen && (
+				<div
+					className="fixed inset-0 bg-black/40 z-40 md:hidden"
+					onClick={() => setMobileNavOpen(false)}
+				/>
+			)}
 			{/* 侧边栏 */}
-			<aside className="w-[240px] shrink-0 brand-sidebar-gradient text-white flex flex-col relative sticky top-0 h-screen overflow-y-auto">
+			<aside
+				className={[
+					"w-[240px] shrink-0 brand-sidebar-gradient text-white flex flex-col relative overflow-y-auto",
+					"md:sticky md:top-0 md:h-screen",
+					"fixed inset-y-0 left-0 z-50 h-screen transition-transform duration-200 md:translate-x-0",
+					mobileNavOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0",
+				].join(" ")}
+			>
 				<div className="absolute inset-0 pointer-events-none opacity-40 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.25),transparent_60%)]" />
 				<div className="absolute bottom-0 left-0 right-0 h-32 pointer-events-none opacity-10 bg-[radial-gradient(circle_at_bottom_right,rgba(64,150,255,0.6),transparent_70%)]" />
-				<div className="relative px-5 pt-6 pb-5 border-b border-white/10">
+				<div className="relative px-5 pt-6 pb-5 border-b border-white/10 flex items-center justify-between">
 					<div className="flex items-center gap-2.5">
 						<div className="w-10 h-10 rounded-xl bg-white/15 backdrop-blur flex items-center justify-center shadow-inner">
 							<GraduationCap className="w-5 h-5" />
@@ -172,31 +212,43 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 							<div className="text-[11px] text-white/70 tracking-wide">Smart Training Platform</div>
 						</div>
 					</div>
+					<button
+						onClick={() => setMobileNavOpen(false)}
+						className="md:hidden w-8 h-8 rounded-lg flex items-center justify-center text-white/80 hover:bg-white/10"
+						aria-label="关闭菜单"
+					>
+						<X className="w-4 h-4" />
+					</button>
 				</div>
 
-				<nav className="relative flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-					{visibleNav.map((it) => {
-						const active = pathname === it.href || pathname.startsWith(it.href + "/")
-						const Icon = it.icon
-						return (
-							<Link
-								key={it.href}
-								href={it.href}
-								className={[
-									"group relative flex items-center gap-3 px-3 h-10 rounded-lg text-sm transition-all duration-200",
-									active
-										? "bg-gradient-to-r from-white/20 to-white/10 text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.15)]"
-										: "text-white/75 hover:bg-white/10 hover:text-white",
-								].join(" ")}
-							>
-								{active && (
-									<span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-7 rounded-r-full bg-gradient-to-b from-[#4096ff] to-[#82b6ff] shadow-[0_0_8px_rgba(64,150,255,0.6)]" />
-								)}
-								<Icon className={active ? "w-[18px] h-[18px]" : "w-[18px] h-[18px] opacity-70 group-hover:opacity-100"} />
-								<span className="tracking-wide">{it.label}</span>
-							</Link>
-						)
-					})}
+				<nav className="relative flex-1 px-3 py-4 space-y-4 overflow-y-auto">
+					{grouped.map((g) => (
+						<div key={g.group} className="space-y-1">
+							<div className="px-3 pt-1 text-[10px] uppercase tracking-widest text-white/40">{g.group}</div>
+							{g.items.map((it) => {
+								const active = pathname === it.href || pathname.startsWith(it.href + "/")
+								const Icon = it.icon
+								return (
+									<Link
+										key={it.href}
+										href={it.href}
+										className={[
+											"group relative flex items-center gap-3 px-3 h-10 rounded-lg text-sm transition-all duration-200",
+											active
+												? "bg-gradient-to-r from-white/20 to-white/10 text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.15)]"
+												: "text-white/75 hover:bg-white/10 hover:text-white",
+										].join(" ")}
+									>
+										{active && (
+											<span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-7 rounded-r-full bg-gradient-to-b from-[#4096ff] to-[#82b6ff] shadow-[0_0_8px_rgba(64,150,255,0.6)]" />
+										)}
+										<Icon className={active ? "w-[18px] h-[18px]" : "w-[18px] h-[18px] opacity-70 group-hover:opacity-100"} />
+										<span className="tracking-wide">{it.label}</span>
+									</Link>
+								)
+							})}
+						</div>
+					))}
 				</nav>
 
 				<div className="relative px-4 py-4 border-t border-white/10 text-[11px] text-white/60 leading-relaxed">
@@ -210,24 +262,33 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
 			{/* 主区域 */}
 			<div className="flex-1 flex flex-col min-w-0">
-				<header className="h-14 sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-gray-200 flex items-center justify-between px-6">
+				<header className="h-14 sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-gray-200 flex items-center justify-between px-4 md:px-6">
 					{/* 面包屑 */}
-					<div className="flex items-center gap-1.5 text-sm">
-						{breadcrumbs.map((c, i) => (
-							<span key={i} className="flex items-center gap-1.5">
-								{i > 0 && <ChevronRight className="w-3.5 h-3.5 text-gray-300" />}
-								{i === 0 && <Home className="w-3.5 h-3.5 text-gray-400" />}
-								{c.href ? (
-									<Link href={c.href} className="text-gray-500 hover:text-[#1677ff] transition-colors">
-										{c.label}
-									</Link>
-								) : (
-									<span className={i === breadcrumbs.length - 1 ? "text-gray-900 font-medium" : "text-gray-500"}>
-										{c.label}
-									</span>
-								)}
-							</span>
-						))}
+					<div className="flex items-center gap-2 min-w-0">
+						<button
+							onClick={() => setMobileNavOpen(true)}
+							className="md:hidden w-9 h-9 rounded-lg flex items-center justify-center text-gray-600 hover:bg-gray-100"
+							aria-label="打开菜单"
+						>
+							<Menu className="w-5 h-5" />
+						</button>
+						<div className="flex items-center gap-1.5 text-sm overflow-x-auto no-scrollbar">
+							{breadcrumbs.map((c, i) => (
+								<span key={i} className="flex items-center gap-1.5 whitespace-nowrap">
+									{i > 0 && <ChevronRight className="w-3.5 h-3.5 text-gray-300" />}
+									{i === 0 && <Home className="w-3.5 h-3.5 text-gray-400" />}
+									{c.href ? (
+										<Link href={c.href} className="text-gray-500 hover:text-[#1677ff] transition-colors">
+											{c.label}
+										</Link>
+									) : (
+										<span className={i === breadcrumbs.length - 1 ? "text-gray-900 font-medium" : "text-gray-500"}>
+											{c.label}
+										</span>
+									)}
+								</span>
+							))}
+						</div>
 					</div>
 
 					<div className="flex items-center gap-3">
@@ -288,7 +349,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 					</div>
 				</header>
 
-				<main className="flex-1 min-w-0 p-6 md:p-8">
+				<main className="flex-1 min-w-0 p-4 md:p-6 lg:p-8">
 					<div className="mx-auto max-w-[1440px] animate-fade-in-up">
 						{children}
 					</div>
