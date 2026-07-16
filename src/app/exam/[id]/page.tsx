@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { apiGet, apiPost } from "@/lib/http"
 import { toast } from "sonner"
 import { Loader2, ShieldCheck, Clock, GraduationCap, AlertCircle } from "lucide-react"
@@ -36,13 +37,21 @@ interface StartResp {
 	}>
 }
 
+// 班组固定选项
+const TEAM_OPTIONS = [
+	{ value: "EM", label: "EM" },
+	{ value: "监理", label: "监理" },
+	{ value: "中闽大秦总包", label: "中闽大秦总包" },
+	{ value: "中闽大秦分包", label: "中闽大秦分包" },
+] as const
+
 export default function ExamEntryPage() {
 	const params = useParams<{ id: string }>()
 	const router = useRouter()
 	const [exam, setExam] = useState<Exam | null>(null)
 	const [loading, setLoading] = useState(true)
 	const [starting, setStarting] = useState(false)
-	const [form, setForm] = useState({ candidate_name: "", phone: "", team: "", id_card: "" })
+	const [form, setForm] = useState({ candidate_name: "", phone: "", team: "", team_detail: "", id_card: "" })
 
 	useEffect(() => {
 		apiGet<{ exam: Exam }>(`/api/exams/${params.id}/public`)
@@ -55,13 +64,22 @@ export default function ExamEntryPage() {
 		if (!exam) return
 		if (!form.candidate_name.trim()) return toast.error("请填写姓名")
 		if (exam.required_fields?.phone && !form.phone.trim()) return toast.error("请填写手机号")
-		if (exam.required_fields?.team && !form.team.trim()) return toast.error("请填写班组")
+		if (exam.required_fields?.team && !form.team.trim()) return toast.error("请选择班组")
+		if (form.team === "中闽大秦分包" && !form.team_detail.trim()) return toast.error("中闽大秦分包必须填写具体班组名称")
 		if (exam.required_fields?.id_card && !form.id_card.trim()) return toast.error("请填写身份证号")
 		if (form.phone && !/^1[3-9]\d{9}$/.test(form.phone.trim())) return toast.error("手机号格式不正确")
 
 		setStarting(true)
 		try {
-			const res = await apiPost<StartResp>(`/api/exams/${params.id}/public`, form)
+			// 合并班组字段：中闽大秦分包 → "中闽大秦分包·{具体班组}"；其他直接用 team 值
+			const payload = {
+				...form,
+				team:
+					form.team === "中闽大秦分包" && form.team_detail.trim()
+						? `中闽大秦分包·${form.team_detail.trim()}`
+						: form.team,
+			}
+			const res = await apiPost<StartResp>(`/api/exams/${params.id}/public`, payload)
 			const pack = {
 				record_id: res.record_id,
 				exam_id: params.id,
@@ -143,7 +161,31 @@ export default function ExamEntryPage() {
 								<Label className="mb-1.5 block text-sm text-gray-700 font-medium">
 									班组 <span className="text-red-500">*</span>
 								</Label>
-								<Input value={form.team} onChange={(e) => setForm({ ...form, team: e.target.value })} placeholder="所在班组，例如：一车间A班" className="h-11 rounded-lg" />
+								<Select value={form.team} onValueChange={(v) => setForm({ ...form, team: v, team_detail: "" })}>
+									<SelectTrigger className="h-11 rounded-lg">
+										<SelectValue placeholder="请选择所在班组" />
+									</SelectTrigger>
+									<SelectContent>
+										{TEAM_OPTIONS.map((opt) => (
+											<SelectItem key={opt.value} value={opt.value}>
+												{opt.label}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+								{form.team === "中闽大秦分包" && (
+									<div className="mt-2">
+										<Label className="mb-1.5 block text-sm text-gray-700 font-medium">
+											具体班组名称 <span className="text-red-500">*</span>
+										</Label>
+										<Input
+											value={form.team_detail}
+											onChange={(e) => setForm({ ...form, team_detail: e.target.value })}
+											placeholder="例如：电气一班、管道二班"
+											className="h-11 rounded-lg"
+										/>
+									</div>
+								)}
 							</div>
 						)}
 						{rf.id_card && (
