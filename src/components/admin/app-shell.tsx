@@ -28,7 +28,6 @@ import {
 	X,
 } from "lucide-react"
 import { toast } from "sonner"
-import { BrandBadge } from "@/components/brand-badge"
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -256,7 +255,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 						<ShieldCheck className="w-3 h-3" />
 						<span>© {new Date().getFullYear()} Smart Training</span>
 					</div>
-					<div className="mt-0.5">v3.0 · AI Powered</div>
+					<div className="mt-0.5">v3.0 · 才子佳人 Powered</div>
 				</div>
 			</aside>
 
@@ -349,14 +348,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 					</div>
 				</header>
 
-				<main className="flex-1 min-w-0 p-4 md:p-6 lg:p-8">
-					<div className="mx-auto max-w-[1440px] animate-fade-in-up">
-						{children}
-					</div>
-					<div className="mx-auto max-w-[1440px] mt-8 pb-4 flex justify-center">
-						<BrandBadge />
-					</div>
-				</main>
+					<main className="flex-1 min-w-0 p-4 md:p-6 lg:p-8">
+						<div className="mx-auto max-w-[1440px] animate-fade-in-up">
+							{children}
+						</div>
+					</main>
 			</div>
 		</div>
 	{/* 修改密码弹窗 */}

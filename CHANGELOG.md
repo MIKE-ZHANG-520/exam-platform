@@ -37,6 +37,44 @@ git checkout main
 
 ---
 
+## v2.1.3 · 2026-07-16
+
+**品牌换装：AI → 才子佳人 + Logo 精简**
+
+### 背景
+- 用户希望把面向用户展示的"AI"字样统一改为"才子佳人"品牌名。
+- 之前页面里存在两处 Logo（内嵌浅色版 `BrandBadge` + 悬浮黑底版 `GlobalLogo`），用户明确"取消之前的浅色版，只保留后面这个（右下角悬浮黑底版）"。
+
+### 本次变更
+- **删除内嵌的浅色 Logo `BrandBadge`**：从 `login/page.tsx`、`admin/app-shell.tsx`、`exam/layout.tsx` 全部移除；组件文件 + 关联 CSS 类一并删除。
+- **保留并优化右下角悬浮 `GlobalLogo`**：CZJR 文字改为橙金色，更贴近截图右侧按钮款视觉。
+- **文案批量替换**：15+ 处面向用户展示的"AI"改为"才子佳人"：
+  - 材料详情页：`AI 生成简易/中等题库` → `才子佳人生成简易/中等题库`
+  - 材料详情页：`AI 生成{label}提纲` → `才子佳人生成{label}提纲`
+  - 材料详情页：`等待 AI 思考` / `AI 生成中` / `AI 识别` / `AI 自由发挥` → 全部换为"才子佳人"
+  - 题库/材料/登录页：描述文案统一
+  - 侧边栏底部：`v3.0 · AI Powered` → `v3.0 · 才子佳人 Powered`
+  - 登录页页脚：`Powered by AI` → `Powered by 才子佳人`
+  - Metadata description 同步更新
+  - `lib/ai.ts` 错误信息也一并更新
+- **保留技术层面命名**：`lib/ai.ts` 文件名、schema 字段注释、代码注释里的"AI"保持不变（面向开发者）。
+
+### 影响文件
+- `src/components/global-logo.tsx`（CZJR 改橙金）
+- `src/components/brand-badge.tsx`（**已删除**）
+- `src/app/globals.css`（清理 `.brand-badge-shimmer`）
+- `src/app/layout.tsx`（description）
+- `src/app/login/page.tsx`（移除 BrandBadge + 文案）
+- `src/app/exam/layout.tsx`（移除 BrandBadge）
+- `src/components/admin/app-shell.tsx`（移除 BrandBadge + 版本文案）
+- `src/app/admin/banks/page.tsx`（文案）
+- `src/app/admin/materials/page.tsx`（文案）
+- `src/app/admin/materials/[id]/page.tsx`（10+ 处文案）
+- `src/lib/ai.ts`（错误信息）
+- `package.json` version 2.1.2 → 2.1.3
+
+---
+
 ## v2.1.2 · 2026-07-16
 
 **题库/提纲生成加"生成要求"备注框**

@@ -31,7 +31,7 @@ interface LLMResponse {
 
 function botHeaders(): Record<string, string> {
   if (!COZE_API_TOKEN) {
-    throw new Error("COZE_WORKLOAD_API_TOKEN 未配置，无法调用 AI 服务");
+    throw new Error("COZE_WORKLOAD_API_TOKEN 未配置，无法调用才子佳人服务");
   }
   return {
     Authorization: `Bearer ${COZE_API_TOKEN}`,

@@ -47,7 +47,7 @@ export default function BanksPage() {
 
 	return (
 		<div className="space-y-6">
-			<PageHeader title="题库管理" description="审核编辑 AI 生成的题库，发布后即可用于组卷" />
+			<PageHeader title="题库管理" description="审核编辑才子佳人生成的题库，发布后即可用于组卷" />
 
 			{/* 筛选区 */}
 			<div className="brand-card rounded-xl p-4 flex flex-wrap items-center gap-3">
@@ -92,7 +92,7 @@ export default function BanksPage() {
 						<BookOpen className="w-7 h-7 text-[#1677ff]" />
 					</div>
 					<div className="text-[15px] font-medium text-gray-800">还没有匹配的题库</div>
-					<div className="text-sm text-gray-500 mt-1">上传材料后在详情页可 AI 一键生成</div>
+					<div className="text-sm text-gray-500 mt-1">上传材料后在详情页可才子佳人一键生成</div>
 					<Link href="/admin/materials" className="mt-4">
 						<Button className="bg-[#1677ff] hover:bg-[#0958d9]">前往材料管理</Button>
 					</Link>

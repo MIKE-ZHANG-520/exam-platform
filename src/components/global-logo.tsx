@@ -42,33 +42,32 @@ export function GlobalLogo() {
           "
         />
 
-        {/* CZJR */}
+        {/* CZJR · 橙金色（对齐截图右侧按钮款） */}
         <span
           className="
             relative z-10
             text-[11px] md:text-xs
             font-bold tracking-[0.15em]
-            text-white
-            [text-shadow:0_0_6px_rgba(255,213,128,0.35)]
+            text-amber-400
+            [text-shadow:0_0_8px_rgba(251,191,36,0.55)]
           "
         >
           CZJR
         </span>
 
-        {/* 分隔圆点 */}
+        {/* 分隔圆点 · 灰白 */}
         <span
           aria-hidden="true"
-          className="relative z-10 inline-block h-1 w-1 rounded-full bg-white/70"
+          className="relative z-10 inline-block h-1 w-1 rounded-full bg-neutral-400"
         />
 
-        {/* 制作 */}
+        {/* 制作 · 亮白 */}
         <span
           className="
             relative z-10
             text-[11px] md:text-xs
             font-semibold tracking-wider
-            text-white
-            [text-shadow:0_0_6px_rgba(255,213,128,0.35)]
+            text-neutral-100
           "
         >
           制作
