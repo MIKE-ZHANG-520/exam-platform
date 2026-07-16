@@ -14,6 +14,24 @@ __pycache__/
 .env
 .cozeproj/reduction
 
+# 图片文件不入库（避免 IDE 对话截图污染仓库、拖慢部署拉码）
+# public/ 下的图片是产品素材，走白名单
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+*.bmp
+*.tiff
+*.ico
+!public/**/*.png
+!public/**/*.jpg
+!public/**/*.jpeg
+!public/**/*.gif
+!public/**/*.webp
+!public/**/*.svg
+!public/**/*.ico
+
 # JS/TS bundlers & build outputs
 .next
 .nuxt
