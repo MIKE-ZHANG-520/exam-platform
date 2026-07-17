@@ -9,10 +9,10 @@ import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { apiGet, apiPost, apiPatch, apiDelete } from "@/lib/http"
 import { toast } from "sonner"
-import { Loader2, Plus, Pencil, Trash2, Users2, Search } from "lucide-react"
+import { Loader2, Plus, Pencil, Trash2, Users2, Search, Upload } from "lucide-react"
 import { PageHeader } from "@/components/admin/page-header"
 
 interface Team {
@@ -68,6 +68,13 @@ export default function TeamsPage() {
   const [keyword, setKeyword] = useState("")
   const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [uploadOpen, setUploadOpen] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [uploadFile, setUploadFile] = useState<File | null>(null)
+  const [uploadProjectId, setUploadProjectId] = useState<string>("")
+  const [preview, setPreview] = useState<{ name: string; leader: string; leader_phone: string; main_work_type: string; description: string }[]>([])
+  const [uploadError, setUploadError] = useState<string>("")
+  const [importing, setImporting] = useState(false)
   const [editing, setEditing] = useState<Team | null>(null)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
@@ -117,6 +124,38 @@ export default function TeamsPage() {
     setDialogOpen(true)
   }
 
+  const handleImport = async () => {
+    if (!uploadFile || !uploadProjectId) return
+    setImporting(true)
+    setUploadError("")
+    try {
+      const formData = new FormData()
+      formData.append("file", uploadFile)
+      formData.append("project_id", uploadProjectId)
+      const res = await fetch("/api/teams/import", { method: "POST", body: formData })
+      const result = await res.json()
+      if (!res.ok) throw new Error(result.error || "导入失败")
+      toast.success(`成功导入 ${result.created} 个班组`)
+      setUploadOpen(false)
+      setUploadFile(null)
+      setPreview([])
+      load()
+    } catch (err: any) {
+      setUploadError(err.message || "导入失败")
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadFile(file)
+    setUploadError("")
+    // 简单预览文件名
+    setPreview([{ name: file.name, leader: "", leader_phone: "", main_work_type: "待解析", description: "" }])
+  }
+
   const onSubmit = async () => {
     if (!form.project_id) return toast.error("请选择所属项目")
     if (!form.name.trim()) return toast.error("请填写班组名称")
@@ -148,6 +187,35 @@ export default function TeamsPage() {
     }
   }
 
+  const onUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!projectId || projectId === "all") {
+      toast.error("请先选择项目")
+      return
+    }
+    setUploading(true)
+    try {
+      const formData = new FormData()
+      formData.append("file", file)
+      formData.append("project_id", projectId)
+      const res = await fetch("/api/teams/import", {
+        method: "POST",
+        body: formData,
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "上传失败")
+      toast.success(`成功导入 ${data.count || 0} 个班组`)
+      setUploadOpen(false)
+      load()
+    } catch (err) {
+      toast.error((err as Error).message)
+    } finally {
+      setUploading(false)
+      e.target.value = ""
+    }
+  }
+
   const projectOptionMap = useMemo(() => {
     const m: Record<string, string> = {}
     for (const p of projects) m[p.id] = p.name
@@ -161,10 +229,16 @@ export default function TeamsPage() {
         subtitle="按项目组织班组结构，班组是培训覆盖统计的基础单元"
         icon={<Users2 className="w-5 h-5" />}
         right={
-          <Button onClick={openAdd} className="gap-1.5" disabled={projects.length === 0}>
-            <Plus className="w-4 h-4" />
-            新增班组
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setUploadOpen(true)} className="gap-1.5" disabled={projects.length === 0}>
+              <Upload className="w-4 h-4" />
+              导入班组
+            </Button>
+            <Button onClick={openAdd} className="gap-1.5" disabled={projects.length === 0}>
+              <Plus className="w-4 h-4" />
+              新增班组
+            </Button>
+          </div>
         }
       />
 
@@ -317,6 +391,91 @@ export default function TeamsPage() {
             <Button onClick={onSubmit} disabled={saving}>
               {saving && <Loader2 className="w-4 h-4 animate-spin mr-1" />}
               {editing ? "保存" : "创建"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 导入班组对话框 */}
+      <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Upload className="w-5 h-5 text-primary" />
+              导入班组
+            </DialogTitle>
+            <DialogDescription>
+              上传 Excel/CSV 文档，自动识别并生成班组
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>选择项目 <span className="text-red-500">*</span></Label>
+              <Select value={uploadProjectId} onValueChange={setUploadProjectId}>
+                <SelectTrigger><SelectValue placeholder="请选择项目" /></SelectTrigger>
+                <SelectContent>
+                  {projects.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>上传文件</Label>
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-primary transition-colors">
+                <input
+                  type="file"
+                  accept=".xlsx,.xls,.csv"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                  id="team-upload"
+                />
+                <label htmlFor="team-upload" className="cursor-pointer">
+                  <Upload className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+                  <p className="text-sm text-gray-600">
+                    {uploadFile ? uploadFile.name : "点击上传 Excel/CSV 文件"}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    支持 .xlsx、.xls、.csv 格式
+                  </p>
+                </label>
+              </div>
+            </div>
+
+            {preview.length > 0 && (
+              <div className="space-y-2">
+                <Label>预览（前 5 条）</Label>
+                <div className="bg-gray-50 rounded-lg p-3 max-h-48 overflow-y-auto">
+                  {preview.slice(0, 5).map((item, idx) => (
+                    <div key={idx} className="text-xs text-gray-600 py-1">
+                      {idx + 1}. {item.name} - {item.main_work_type || "未分工种"}
+                    </div>
+                  ))}
+                  {preview.length > 5 && (
+                    <div className="text-xs text-gray-400 mt-1">
+                      ...还有 {preview.length - 5} 条
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {uploadError && (
+              <div className="bg-red-50 text-red-600 text-sm rounded-lg p-3">
+                {uploadError}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => { setUploadOpen(false); setUploadFile(null); setPreview([]); setUploadError(""); }}>
+              取消
+            </Button>
+            <Button onClick={handleImport} disabled={!uploadFile || !uploadProjectId || importing}>
+              {importing && <Loader2 className="w-4 h-4 animate-spin mr-1" />}
+              确认导入
             </Button>
           </DialogFooter>
         </DialogContent>
