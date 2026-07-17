@@ -206,7 +206,7 @@ async function handleStart(
     return NextResponse.json({ error: "材料尚未解析，请先执行解析" }, { status: 400 });
   }
 
-  // 第 1 批：删除同 difficulty 旧题库 + 创建新 bank
+  // 第 1 批：删除同 difficulty 旧题库 + 对应题目 + 创建新 bank
   let bankId: string;
   if (batchIndex === 0) {
     const { data: oldBanks } = await client
@@ -216,7 +216,11 @@ async function handleStart(
       .eq("difficulty", difficulty);
     if (oldBanks && oldBanks.length > 0) {
       const ids = oldBanks.map((b) => b.id);
-      if (ids.length > 0) await client.from("question_banks").delete().in("id", ids);
+      // 先删题目（级联），再删题库
+      if (ids.length > 0) {
+        await client.from("questions").delete().in("bank_id", ids);
+        await client.from("question_banks").delete().in("id", ids);
+      }
     }
 
     const bankTitle = `《${material.title}》培训题库（${difficulty === "easy" ? "简易" : "中等"}）`;
