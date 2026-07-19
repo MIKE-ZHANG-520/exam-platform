@@ -123,7 +123,7 @@ export default function WorkersPage() {
     load()
   }, [load])
 
-  const teamOptionsInForm = useMemo(() => teams.filter((t) => !form.project_id || t.project_id === form.project_id), [teams, form.project_id])
+  const teamOptionsInForm = useMemo(() => teams.filter((t) => form.project_id === "none" || !form.project_id || t.project_id === form.project_id), [teams, form.project_id])
   const teamOptionsInFilter = useMemo(() => teams.filter((t) => projectId === "all" || t.project_id === projectId), [teams, projectId])
   const teamOptionsInImport = useMemo(() => teams.filter((t) => importProjectId === "none" || t.project_id === importProjectId), [teams, importProjectId])
 
@@ -131,8 +131,8 @@ export default function WorkersPage() {
     setEditing(null)
     setForm({
       ...EMPTY_FORM,
-      project_id: projectId !== "all" ? projectId : "",
-      team_id: teamId !== "all" ? teamId : "",
+      project_id: projectId !== "all" ? projectId : "none",
+      team_id: teamId !== "all" ? teamId : "none",
     })
     setDialogOpen(true)
   }
@@ -144,8 +144,8 @@ export default function WorkersPage() {
       phone: w.phone ?? "",
       gender: w.gender || "男",
       work_type: w.work_type ?? "",
-      project_id: w.project_id ?? "",
-      team_id: w.team_id ?? "",
+      project_id: w.project_id || "none",
+      team_id: w.team_id || "none",
       hire_date: w.hire_date ?? "",
       status: w.status,
     })
@@ -155,9 +155,18 @@ export default function WorkersPage() {
     if (!form.name.trim()) return toast.error("请填写姓名")
     setSaving(true)
     try {
+      const payload: Record<string, unknown> = {
+        name: form.name,
+        phone: form.phone || null,
+        gender: form.gender,
+        work_type: form.work_type || null,
+        project_id: form.project_id === "none" ? null : form.project_id,
+        team_id: form.team_id === "none" ? null : form.team_id,
+        hire_date: form.hire_date || null,
+        status: form.status,
+      }
       if (editing) {
-        const payload: Partial<FormState> = { ...form }
-        if (!payload.id_card) delete payload.id_card
+        if (form.id_card) payload.id_card = form.id_card
         await apiPatch(`/api/workers/${editing.id}`, payload)
         toast.success("已更新")
       } else {
@@ -165,7 +174,8 @@ export default function WorkersPage() {
           setSaving(false)
           return toast.error("身份证号是唯一主键，必填")
         }
-        await apiPost("/api/workers", form)
+        payload.id_card = form.id_card
+        await apiPost("/api/workers", payload)
         toast.success("已创建")
       }
       setDialogOpen(false)
@@ -387,18 +397,20 @@ export default function WorkersPage() {
             </div>
             <div className="space-y-1.5">
               <Label>所属项目</Label>
-              <Select value={form.project_id} onValueChange={(v) => setForm({ ...form, project_id: v, team_id: "" })}>
+              <Select value={form.project_id} onValueChange={(v) => setForm({ ...form, project_id: v, team_id: "none" })}>
                 <SelectTrigger><SelectValue placeholder="选填" /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="none">未指定</SelectItem>
                   {projects.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">
               <Label>所属班组</Label>
-              <Select value={form.team_id} onValueChange={(v) => setForm({ ...form, team_id: v })} disabled={!form.project_id}>
-                <SelectTrigger><SelectValue placeholder={form.project_id ? "选填" : "先选项目"} /></SelectTrigger>
+              <Select value={form.team_id} onValueChange={(v) => setForm({ ...form, team_id: v })} disabled={form.project_id === "none"}>
+                <SelectTrigger><SelectValue placeholder={form.project_id !== "none" ? "选填" : "先选项目"} /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="none">未指定</SelectItem>
                   {teamOptionsInForm.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
                 </SelectContent>
               </Select>
