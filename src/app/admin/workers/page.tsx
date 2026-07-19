@@ -89,8 +89,8 @@ export default function WorkersPage() {
     skipped: number
     errors: Array<{ row: number; reason: string }>
   } | null>(null)
-  const [importProjectId, setImportProjectId] = useState<string>("")
-  const [importTeamId, setImportTeamId] = useState<string>("")
+  const [importProjectId, setImportProjectId] = useState<string>("none")
+  const [importTeamId, setImportTeamId] = useState<string>("none")
   const fileRef = useRef<HTMLInputElement | null>(null)
 
   const load = useCallback(() => {
@@ -125,7 +125,7 @@ export default function WorkersPage() {
 
   const teamOptionsInForm = useMemo(() => teams.filter((t) => !form.project_id || t.project_id === form.project_id), [teams, form.project_id])
   const teamOptionsInFilter = useMemo(() => teams.filter((t) => projectId === "all" || t.project_id === projectId), [teams, projectId])
-  const teamOptionsInImport = useMemo(() => teams.filter((t) => !importProjectId || t.project_id === importProjectId), [teams, importProjectId])
+  const teamOptionsInImport = useMemo(() => teams.filter((t) => importProjectId === "none" || t.project_id === importProjectId), [teams, importProjectId])
 
   const openAdd = () => {
     setEditing(null)
@@ -195,8 +195,8 @@ export default function WorkersPage() {
     try {
       const fd = new FormData()
       fd.append("file", f)
-      if (importProjectId) fd.append("project_id", importProjectId)
-      if (importTeamId) fd.append("team_id", importTeamId)
+      if (importProjectId && importProjectId !== "none") fd.append("project_id", importProjectId)
+      if (importTeamId && importTeamId !== "none") fd.append("team_id", importTeamId)
       const r = await apiPost<{
         total: number
         success: number
@@ -436,20 +436,20 @@ export default function WorkersPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>默认项目（可选）</Label>
-                <Select value={importProjectId} onValueChange={(v) => { setImportProjectId(v); setImportTeamId("") }}>
+                <Select value={importProjectId} onValueChange={(v) => { setImportProjectId(v); setImportTeamId("none") }}>
                   <SelectTrigger><SelectValue placeholder="不指定" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">不指定（读表内列）</SelectItem>
+                    <SelectItem value="none">不指定（读表内列）</SelectItem>
                     {projects.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
                 <Label>默认班组（可选）</Label>
-                <Select value={importTeamId} onValueChange={setImportTeamId} disabled={!importProjectId}>
+                <Select value={importTeamId} onValueChange={setImportTeamId} disabled={importProjectId === "none"}>
                   <SelectTrigger><SelectValue placeholder="不指定" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">不指定</SelectItem>
+                    <SelectItem value="none">不指定</SelectItem>
                     {teamOptionsInImport.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
