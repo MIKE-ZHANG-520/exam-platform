@@ -287,3 +287,118 @@ export const evaluations = pgTable(
 		index("evaluations_record_id_idx").on(table.record_id),
 	]
 );
+
+// ==================== 安全管理体系 ====================
+
+// 工人入场档案（一人一档）
+export const worker_profiles = pgTable(
+	"worker_profiles",
+	{
+		id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+		worker_id: varchar("worker_id", { length: 36 }).notNull().unique().references(() => workers.id, { onDelete: "cascade" }),
+		// 身份证信息
+		id_card_front_url: varchar("id_card_front_url", { length: 500 }),  // 身份证正面照片
+		id_card_back_url: varchar("id_card_back_url", { length: 500 }),    // 身份证反面照片
+		// 特种作业证
+		special_cert_type: varchar("special_cert_type", { length: 60 }),   // 电工/焊工/架子工等
+		special_cert_no: varchar("special_cert_no", { length: 100 }),      // 证件编号
+		special_cert_issue_date: varchar("special_cert_issue_date", { length: 10 }),
+		special_cert_expire_date: varchar("special_cert_expire_date", { length: 10 }),
+		special_cert_url: varchar("special_cert_url", { length: 500 }),    // 证件照片
+		// 体检报告
+		health_report_url: varchar("health_report_url", { length: 500 }),
+		health_check_date: varchar("health_check_date", { length: 10 }),
+		// 审核状态
+		status: varchar("status", { length: 20 }).notNull().default("pending"),
+		// pending / approved / rejected
+		reject_reason: text("reject_reason"),
+		reviewed_by: varchar("reviewed_by", { length: 36 }),               // 审核人 ID
+		reviewed_at: timestamp("reviewed_at", { withTimezone: true }),
+		// 二维码
+		qr_code_url: varchar("qr_code_url", { length: 500 }),
+		qr_code_generated: boolean("qr_code_generated").notNull().default(false),
+		// 入场状态
+		admission_status: varchar("admission_status", { length: 20 }).notNull().default("not_started"),
+		// not_started / training / briefing / admitted
+		created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+		updated_at: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+	},
+	(table) => [
+		index("worker_profiles_worker_id_idx").on(table.worker_id),
+		index("worker_profiles_status_idx").on(table.status),
+		index("worker_profiles_admission_status_idx").on(table.admission_status),
+	]
+);
+
+// 三级安全教育培训记录
+export const safety_trainings = pgTable(
+	"safety_trainings",
+	{
+		id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+		worker_id: varchar("worker_id", { length: 36 }).notNull().references(() => workers.id, { onDelete: "cascade" }),
+		level: varchar("level", { length: 20 }).notNull(),
+		// company / project / team（公司级/项目级/班组级）
+		training_date: varchar("training_date", { length: 10 }).notNull(),
+		instructor: varchar("instructor", { length: 60 }).notNull(),       // 培训讲师
+		instructor_phone: varchar("instructor_phone", { length: 30 }),
+		duration_hours: integer("duration_hours").notNull().default(2),    // 培训时长（小时）
+		content: text("content"),                                          // 培训内容
+		certificate_url: varchar("certificate_url", { length: 500 }),      // 培训证书照片
+		exam_passed: boolean("exam_passed").notNull().default(false),      // 是否通过考试
+		exam_score: integer("exam_score"),                                 // 考试分数
+		exam_record_id: varchar("exam_record_id", { length: 36 }),         // 关联考试记录
+		remark: text("remark"),
+		created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+		updated_at: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+	},
+	(table) => [
+		index("safety_trainings_worker_id_idx").on(table.worker_id),
+		index("safety_trainings_level_idx").on(table.level),
+		index("safety_trainings_training_date_idx").on(table.training_date),
+	]
+);
+
+// 入场交底记录
+export const safety_briefings = pgTable(
+	"safety_briefings",
+	{
+		id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+		worker_id: varchar("worker_id", { length: 36 }).notNull().references(() => workers.id, { onDelete: "cascade" }),
+		briefing_date: varchar("briefing_date", { length: 10 }).notNull(),
+		instructor: varchar("instructor", { length: 60 }).notNull(),       // 交底人
+		instructor_phone: varchar("instructor_phone", { length: 30 }),
+		content: text("content").notNull(),                                // 交底内容
+		location: varchar("location", { length: 200 }),                    // 交底地点
+		signature_url: varchar("signature_url", { length: 500 }),          // 工人签名照片
+		witness: varchar("witness", { length: 60 }),                       // 见证人
+		remark: text("remark"),
+		created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+		updated_at: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+	},
+	(table) => [
+		index("safety_briefings_worker_id_idx").on(table.worker_id),
+		index("safety_briefings_briefing_date_idx").on(table.briefing_date),
+	]
+);
+
+// 专项培训记录（可选，用于记录额外的专项培训）
+export const special_trainings = pgTable(
+	"special_trainings",
+	{
+		id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+		worker_id: varchar("worker_id", { length: 36 }).notNull().references(() => workers.id, { onDelete: "cascade" }),
+		title: varchar("title", { length: 200 }).notNull(),                // 培训主题
+		training_date: varchar("training_date", { length: 10 }).notNull(),
+		instructor: varchar("instructor", { length: 60 }),
+		duration_hours: integer("duration_hours").notNull().default(1),
+		content: text("content"),
+		certificate_url: varchar("certificate_url", { length: 500 }),
+		remark: text("remark"),
+		created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+		updated_at: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+	},
+	(table) => [
+		index("special_trainings_worker_id_idx").on(table.worker_id),
+		index("special_trainings_training_date_idx").on(table.training_date),
+	]
+);

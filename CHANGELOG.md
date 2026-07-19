@@ -37,6 +37,76 @@ git checkout main
 
 ---
 
+## v2.3.0 · 2026-07-19
+
+**安全管理体系 · 一人一档 + 入场审核 + 培训记录 + 二维码**
+
+### 背景
+- 用户要求构建完整的安全管理体系
+- 新工人入场前需提交身份证、特种作业证、体检报告等资料
+- 资料审核通过后进行三级安全教育培训和入场交底
+- 完成后生成专属二维码，可打印张贴于安全帽
+- 管理人员扫码可查看工人培训档案、证件有效期等信息
+
+### 新增功能
+
+#### 1. 数据表扩展
+| 表名 | 说明 |
+|------|------|
+| `worker_profiles` | 工人入场档案（身份证/特种作业证/体检报告/审核状态/二维码） |
+| `safety_trainings` | 三级安全教育培训记录（公司级/项目级/班组级） |
+| `safety_briefings` | 入场交底记录 |
+| `special_trainings` | 专项培训记录 |
+
+#### 2. 工人安全管理页面（/admin/workers）
+- 工人列表展示档案状态、入场状态
+- 统计卡片：总人数、待审核、已通过、已入场、证件即将到期
+- 筛选：按审核状态、入场状态筛选
+- 证件到期预警（30天内）
+
+#### 3. 工人档案详情页（/admin/workers/[workerId]/profile）
+- **入场资料 Tab**：上传身份证正反面、特种作业证、体检报告
+- **三级教育 Tab**：记录公司级/项目级/班组级培训
+- **入场交底 Tab**：记录入场安全交底
+- **二维码 Tab**：生成并打印入场二维码
+- 审核功能：通过/驳回，驳回需填写原因
+
+#### 4. 扫码查询页（/worker/[id]）
+- H5 页面，管理人员扫码查看
+- 展示工人基本信息、入场状态
+- 特种作业证有效期状态
+- 三级教育完成情况
+- 培训记录和交底记录
+
+#### 5. API 接口
+| 路由 | 方法 | 说明 |
+|------|------|------|
+| `/api/worker-profiles` | GET/POST | 工人档案查询/创建更新（含文件上传） |
+| `/api/worker-profiles/[workerId]/trainings` | GET/POST | 三级教育培训记录 |
+| `/api/worker-profiles/[workerId]/briefings` | GET/POST | 入场交底记录 |
+| `/api/worker-profiles/[workerId]/review` | POST/PUT | 档案审核/二维码生成 |
+| `/api/workers/[id]/public` | GET | 公开接口：扫码查询工人档案 |
+
+### 入场流程
+```
+上传资料 → 待审核 → 审核通过 → 三级教育培训 → 入场交底 → 已入场 → 生成二维码
+                ↓
+              驳回（需补充资料）
+```
+
+### 影响文件
+- 新增：`src/app/admin/workers/page.tsx`
+- 新增：`src/app/admin/workers/[workerId]/profile/page.tsx`
+- 新增：`src/app/worker/[id]/page.tsx`
+- 新增：`src/app/api/worker-profiles/` 系列 API
+- 新增：`src/app/api/workers/[id]/public/route.ts`
+- 修改：`src/storage/database/shared/schema.ts`（新增数据表）
+- 修改：`src/components/admin/app-shell.tsx`（导航更新）
+- 修改：`src/app/api/workers/route.ts`（支持档案关联查询）
+- `package.json` version 2.2.0 → 2.3.0
+
+---
+
 ## v2.1.7 · 2026-07-16
 
 **工人考试端 · 班组改为下拉选择 + 分包强制填写具体班组**

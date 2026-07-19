@@ -56,7 +56,7 @@ interface WorkerRow {
   updated_at: string;
 }
 
-// GET /api/workers?project_id=&team_id=&work_type=&status=&keyword=&page=&size=
+// GET /api/workers?project_id=&team_id=&work_type=&status=&keyword=&page=&size=&search=&worker_id=
 export async function GET(request: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "未登录" }, { status: 401 });
@@ -66,15 +66,33 @@ export async function GET(request: NextRequest) {
   const teamId = url.searchParams.get("team_id");
   const workType = url.searchParams.get("work_type");
   const status = url.searchParams.get("status");
-  const keyword = (url.searchParams.get("keyword") || "").trim();
+  const keyword = (url.searchParams.get("keyword") || url.searchParams.get("search") || "").trim();
+  const workerId = url.searchParams.get("worker_id");
+  const admissionStatus = url.searchParams.get("admission_status");
+  const profileStatus = url.searchParams.get("status");
   const page = Math.max(1, parseInt(url.searchParams.get("page") || "1", 10) || 1);
   const size = Math.min(200, Math.max(10, parseInt(url.searchParams.get("size") || "50", 10) || 50));
 
   const client = db();
+
+  // 如果指定了 worker_id，直接查询单个工人
+  if (workerId) {
+    const { data, error } = await client
+      .from("workers")
+      .select("id, name, gender, birth_year, phone, work_type, team_id, teams(name)")
+      .eq("id", workerId)
+      .maybeSingle();
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (!data) return NextResponse.json({ items: [], total: 0 });
+
+    return NextResponse.json({ items: [data], total: 1 });
+  }
+
   let query = client
     .from("workers")
     .select(
-      "id, name, gender, birth_year, phone, id_card_mask, work_type, project_id, team_id, hire_date, leave_date, status, emergency_contact, emergency_phone, health_cert_expires_at, remark, created_at, updated_at",
+      "id, name, gender, birth_year, phone, id_card_mask, work_type, project_id, team_id, hire_date, leave_date, status, emergency_contact, emergency_phone, health_cert_expires_at, remark, created_at, updated_at, teams(name)",
       { count: "exact" },
     )
     .order("created_at", { ascending: false });
@@ -102,45 +120,60 @@ export async function GET(request: NextRequest) {
   const { data, count, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  const rows = (data ?? []) as WorkerRow[];
-  const projectIds = Array.from(new Set(rows.map((r) => r.project_id).filter(Boolean))) as string[];
-  const teamIds = Array.from(new Set(rows.map((r) => r.team_id).filter(Boolean))) as string[];
-  const [projectMap, teamMap] = await Promise.all([
-    projectIds.length
-      ? client
-          .from("projects")
-          .select("id, name")
-          .in("id", projectIds)
-          .then(({ data: pd }) => {
-            const m: Record<string, string> = {};
-            for (const r of pd ?? []) {
-              const row = r as { id: string; name: string };
-              m[row.id] = row.name;
-            }
-            return m;
-          })
-      : Promise.resolve({} as Record<string, string>),
-    teamIds.length
-      ? client
-          .from("teams")
-          .select("id, name")
-          .in("id", teamIds)
-          .then(({ data: td }) => {
-            const m: Record<string, string> = {};
-            for (const r of td ?? []) {
-              const row = r as { id: string; name: string };
-              m[row.id] = row.name;
-            }
-            return m;
-          })
-      : Promise.resolve({} as Record<string, string>),
-  ]);
+  const rows = (data ?? []) as unknown as Array<WorkerRow & { teams?: { name: string } | null }>;
+  const workerIds = rows.map((r) => r.id);
 
-  const items = rows.map((r) => ({
+  // 获取工人档案信息
+  const profileMap: Record<string, {
+    id: string;
+    status: string;
+    admission_status: string;
+    qr_code_generated: boolean;
+    special_cert_type: string | null;
+    special_cert_expire_date: string | null;
+  }> = {};
+
+  if (workerIds.length > 0) {
+    const { data: profiles } = await client
+      .from("worker_profiles")
+      .select("id, worker_id, status, admission_status, qr_code_generated, special_cert_type, special_cert_expire_date")
+      .in("worker_id", workerIds);
+
+    if (profiles) {
+      for (const p of profiles) {
+        profileMap[p.worker_id] = {
+          id: p.id,
+          status: p.status,
+          admission_status: p.admission_status,
+          qr_code_generated: p.qr_code_generated,
+          special_cert_type: p.special_cert_type,
+          special_cert_expire_date: p.special_cert_expire_date,
+        };
+      }
+    }
+  }
+
+  // 根据档案状态筛选
+  let filteredRows = rows;
+  if (admissionStatus && admissionStatus !== "all") {
+    filteredRows = rows.filter((r) => {
+      const profile = profileMap[r.id];
+      const actualStatus = profile?.admission_status || "not_started";
+      return actualStatus === admissionStatus;
+    });
+  }
+  if (profileStatus && profileStatus !== "all") {
+    filteredRows = rows.filter((r) => {
+      const profile = profileMap[r.id];
+      const actualStatus = profile?.status || "not_created";
+      return actualStatus === profileStatus;
+    });
+  }
+
+  const items = filteredRows.map((r) => ({
     ...r,
     phone_mask: r.phone ? maskPhone(r.phone) : null,
-    project_name: r.project_id ? projectMap[r.project_id] ?? "" : "",
-    team_name: r.team_id ? teamMap[r.team_id] ?? "" : "",
+    profile: profileMap[r.id] || null,
   }));
 
   return NextResponse.json({ items, total: count ?? items.length, page, size });

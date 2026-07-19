@@ -25,18 +25,22 @@ src/
 │   │   ├── questions/[id]       # 单题编辑/删除
 │   │   ├── exams/               # 试卷 CRUD + 二维码 + 公开接口（开始考试）
 │   │   ├── records/             # 考试记录 + 交卷 + 评价
-│   │   └── dashboard            # 数据看板聚合接口
+│   │   ├── dashboard            # 数据看板聚合接口
+│   │   ├── worker-profiles/     # 工人档案 + 培训 + 交底 + 审核
+│   │   └── workers/[id]/public  # 公开扫码查询接口
 │   ├── admin/                   # 管理后台（PC）
 │   │   ├── dashboard            # 数据看板
 │   │   ├── materials            # 材料管理 + 详情（提纲/题库）
 │   │   ├── banks                # 题库管理 + 题目编辑
 │   │   ├── exams                # 试卷管理 + 二维码弹窗
-│   │   └── records              # 考试记录 + 答卷详情
+│   │   ├── records              # 考试记录 + 答卷详情
+│   │   └── workers/             # 工人安全管理 + 档案详情
 │   └── exam/[id]/               # 工人考试端（H5）
 │       ├── page.tsx             # 信息录入 + 开始考试
 │       ├── paper/               # 答题页（倒计时/切屏检测/题卡）
 │       ├── result/              # 成绩页
 │       └── evaluate/            # 讲师评价页（5 维度星级）
+├── worker/[id]/                 # 工人档案扫码查询页（H5）
 ├── components/
 │   ├── ui/                      # shadcn 组件
 │   └── admin/                   # 管理后台专用组件（sidebar/page-header）
@@ -62,6 +66,10 @@ src/
 - `exams`：试卷（paper_type=A/B，config JSON，required_fields JSON）
 - `exam_records`：考试记录（paper_snapshot JSON，answers JSON，score，is_pass，attempt_no，switch_count）
 - `exam_evaluations`：讲师评价（5 维度星级 + comment）
+- `worker_profiles`：工人入场档案（身份证/特种作业证/体检报告/审核状态/二维码）
+- `safety_trainings`：三级安全教育培训（company/project/team 三级）
+- `safety_briefings`：入场交底记录
+- `special_trainings`：专项培训记录
 
 ## 关键 API
 
@@ -85,6 +93,11 @@ src/
 | `/api/records/[id]/submit` | POST | 交卷评分 |
 | `/api/records/[id]/evaluate` | POST | 讲师评价 |
 | `/api/dashboard` | GET | 看板聚合数据 |
+| `/api/worker-profiles` | GET/POST | 工人档案查询/创建更新（含文件上传） |
+| `/api/worker-profiles/[workerId]/trainings` | GET/POST | 三级教育培训记录 |
+| `/api/worker-profiles/[workerId]/briefings` | GET/POST | 入场交底记录 |
+| `/api/worker-profiles/[workerId]/review` | POST/PUT | 档案审核/二维码生成 |
+| `/api/workers/[workerId]/public` | GET | 公开接口：扫码查询工人档案 |
 
 ## 开发命令
 

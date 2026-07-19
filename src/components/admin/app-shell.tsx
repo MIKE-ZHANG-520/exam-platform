@@ -26,6 +26,7 @@ import {
 	UserSquare2,
 	Menu,
 	X,
+	Shield,
 } from "lucide-react"
 import { toast } from "sonner"
 import {
@@ -68,7 +69,7 @@ const NAV: NavItem[] = [
 	{ href: "/admin/dashboard", label: "数据看板", icon: LayoutDashboard, group: "总览" },
 	{ href: "/admin/projects", label: "项目管理", icon: FolderKanban, group: "组织架构", adminOnly: true },
 	{ href: "/admin/teams", label: "班组管理", icon: Users2, group: "组织架构", adminOnly: true },
-	{ href: "/admin/workers", label: "花名册", icon: UserSquare2, group: "组织架构", adminOnly: true },
+	{ href: "/admin/workers", label: "工人安全管理", icon: Shield, group: "组织架构" },
 	{ href: "/admin/materials", label: "培训材料", icon: FileText, group: "培训业务" },
 	{ href: "/admin/banks", label: "题库管理", icon: NotebookPen, group: "培训业务" },
 	{ href: "/admin/exams", label: "考试试卷", icon: BookOpen, group: "培训业务" },
@@ -88,7 +89,10 @@ function getBreadcrumbs(pathname: string): { label: string; href?: string }[] {
 	if (pathname === "/admin/dashboard") crumbs.push({ label: "数据看板" })
 	else if (pathname.startsWith("/admin/projects")) crumbs.push({ label: "项目管理" })
 	else if (pathname.startsWith("/admin/teams")) crumbs.push({ label: "班组管理" })
-	else if (pathname.startsWith("/admin/workers")) crumbs.push({ label: "花名册" })
+	else if (pathname.startsWith("/admin/workers")) {
+		if (pathname === "/admin/workers") crumbs.push({ label: "工人安全管理" })
+		else crumbs.push({ label: "工人安全管理", href: "/admin/workers" }, { label: "工人档案" })
+	}
 	else if (pathname.startsWith("/admin/materials")) {
 		crumbs.push({ label: "培训材料", href: "/admin/materials" })
 		if (pathname !== "/admin/materials") crumbs.push({ label: "材料详情" })
