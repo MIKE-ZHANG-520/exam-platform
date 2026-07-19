@@ -104,7 +104,21 @@ export async function POST(request: NextRequest) {
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
   if (!sheet) return NextResponse.json({ error: "工作簿为空" }, { status: 400 });
 
-  const rows: unknown[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, blankrows: false, defval: "" });
+  const rawRows: unknown[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, blankrows: false, defval: "" });
+
+  // 自动查找表头行：在前 5 行中寻找包含"姓名"和"身份证"的行
+  let headerRowIndex = 0;
+  for (let i = 0; i < Math.min(5, rawRows.length); i++) {
+    const row = rawRows[i] as unknown[];
+    const hasName = row.some(cell => String(cell || "").includes("姓名"));
+    const hasId = row.some(cell => String(cell || "").includes("身份证"));
+    if (hasName && hasId) {
+      headerRowIndex = i;
+      break;
+    }
+  }
+
+  const rows = rawRows.slice(headerRowIndex); // 从表头行开始
   if (rows.length < 2) return NextResponse.json({ error: "表格中未找到数据行" }, { status: 400 });
 
   const headers = (rows[0] as unknown[]).map((v) => String(v ?? ""));
