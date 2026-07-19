@@ -58,27 +58,33 @@ git checkout main
 | `safety_briefings` | 入场交底记录 |
 | `special_trainings` | 专项培训记录 |
 
-#### 2. 工人安全管理页面（/admin/workers）
-- 工人列表展示档案状态、入场状态
+#### 2. 导航结构调整
+| 菜单 | 路径 | 功能 |
+|------|------|------|
+| **花名册** | `/admin/workers` | 工人基本信息管理（增删改查、离职/借调状态） |
+| **工人安全管理** | `/admin/safety` | 入场资料审核、培训记录、二维码管理 |
+
+#### 3. 工人安全管理页面（/admin/safety）
 - 统计卡片：总人数、待审核、已通过、已入场、证件即将到期
 - 筛选：按审核状态、入场状态筛选
 - 证件到期预警（30天内）
+- 点击"管理档案"进入工人档案详情页
 
-#### 3. 工人档案详情页（/admin/workers/[workerId]/profile）
+#### 4. 工人档案详情页（/admin/workers/[workerId]/profile）
 - **入场资料 Tab**：上传身份证正反面、特种作业证、体检报告
 - **三级教育 Tab**：记录公司级/项目级/班组级培训
 - **入场交底 Tab**：记录入场安全交底
 - **二维码 Tab**：生成并打印入场二维码
 - 审核功能：通过/驳回，驳回需填写原因
 
-#### 4. 扫码查询页（/worker/[id]）
+#### 5. 扫码查询页（/worker/[id]）
 - H5 页面，管理人员扫码查看
 - 展示工人基本信息、入场状态
 - 特种作业证有效期状态
 - 三级教育完成情况
 - 培训记录和交底记录
 
-#### 5. API 接口
+#### 6. API 接口
 | 路由 | 方法 | 说明 |
 |------|------|------|
 | `/api/worker-profiles` | GET/POST | 工人档案查询/创建更新（含文件上传） |
@@ -89,13 +95,13 @@ git checkout main
 
 ### 入场流程
 ```
-上传资料 → 待审核 → 审核通过 → 三级教育培训 → 入场交底 → 已入场 → 生成二维码
-                ↓
-              驳回（需补充资料）
+花名册录入工人 → 工人安全管理 → 上传入场资料 → 审核 → 三级教育培训 → 入场交底 → 已入场 → 生成二维码
+                                    ↓
+                                  驳回（需补充资料）
 ```
 
 ### 影响文件
-- 新增：`src/app/admin/workers/page.tsx`
+- 新增：`src/app/admin/safety/page.tsx`
 - 新增：`src/app/admin/workers/[workerId]/profile/page.tsx`
 - 新增：`src/app/worker/[id]/page.tsx`
 - 新增：`src/app/api/worker-profiles/` 系列 API
@@ -103,6 +109,7 @@ git checkout main
 - 修改：`src/storage/database/shared/schema.ts`（新增数据表）
 - 修改：`src/components/admin/app-shell.tsx`（导航更新）
 - 修改：`src/app/api/workers/route.ts`（支持档案关联查询）
+- 恢复：`src/app/admin/workers/page.tsx`（花名册原始功能）
 - `package.json` version 2.2.0 → 2.3.0
 
 ---
