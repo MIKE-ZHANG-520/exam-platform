@@ -187,17 +187,80 @@ export async function POST(request: NextRequest) {
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
   if (!sheet) return NextResponse.json({ error: "工作簿为空" }, { status: 400 });
 
-  const rawRows: unknown[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, blankrows: false, defval: "" });
+  const rawRows: unknown[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, blankrows: true, defval: "" });
 
-  // 自动查找表头行：在前 5 行中寻找包含"姓名"和"身份证"的行
-  let headerRowIndex = 0;
-  for (let i = 0; i < Math.min(5, rawRows.length); i++) {
+  // 自动查找表头行：在前 10 行中寻找同时包含"姓名"和"身份证"的行
+  let headerRowIndex = -1;
+  for (let i = 0; i < Math.min(10, rawRows.length); i++) {
     const row = rawRows[i] as unknown[];
-    const hasName = row.some(cell => String(cell || "").includes("姓名"));
-    const hasId = row.some(cell => String(cell || "").includes("身份证"));
+    if (!row || row.length === 0) continue;
+    const hasName = row.some((cell) => String(cell || "").includes("姓名"));
+    const hasId = row.some((cell) => String(cell || "").includes("身份证"));
     if (hasName && hasId) {
       headerRowIndex = i;
       break;
+    }
+  }
+
+  // 如果找不到表头行，用 AI 分析前 10 行
+  if (headerRowIndex === -1) {
+    console.log("[workers/import] 未找到表头行，尝试 AI 分析前 10 行");
+    const previewRows = rawRows.slice(0, 10).map((row, idx) => ({
+      index: idx,
+      cells: (row as unknown[]).map((c) => String(c ?? "")),
+    }));
+
+    try {
+      const prompt = `你是一位专业的表格分析专家。请分析下面的表格数据，找出表头行和关键列的位置。
+
+表格数据（前 10 行）：
+${previewRows.map((r) => `第${r.index}行: ${r.cells.join(" | ")}`).join("\n")}
+
+请返回 JSON 格式（不要包含 markdown 代码块标记）：
+{
+  "header_row": 表头行的索引（0-9）,
+  "name_col": 姓名列的索引,
+  "id_card_col": 身份证号列的索引,
+  "phone_col": 电话列的索引（没有返回null）,
+  "team_col": 班组列的索引（没有返回null）,
+  "work_type_col": 工种列的索引（没有返回null）,
+  "hire_date_col": 入职/进场日期列的索引（没有返回null）
+}`;
+
+      const llm = makeLLM();
+      const response = await llm.invoke([{ role: "user", content: prompt }], { temperature: 0.1 });
+      const text = response.content;
+      const aiResult = extractJson<{
+        header_row: number;
+        name_col: number;
+        id_card_col: number;
+        phone_col?: number | null;
+        team_col?: number | null;
+        work_type_col?: number | null;
+        hire_date_col?: number | null;
+      }>(text);
+
+      console.log("[workers/import] AI 分析结果:", aiResult);
+
+      headerRowIndex = aiResult.header_row;
+      const headers = (rawRows[headerRowIndex] as unknown[]).map((v) => String(v ?? ""));
+      const headerMap: Record<string, number> = {
+        name: aiResult.name_col,
+        id_card: aiResult.id_card_col,
+      };
+      if (aiResult.phone_col !== null && aiResult.phone_col !== undefined) headerMap.phone = aiResult.phone_col;
+      if (aiResult.team_col !== null && aiResult.team_col !== undefined) headerMap.team_name = aiResult.team_col;
+      if (aiResult.work_type_col !== null && aiResult.work_type_col !== undefined) headerMap.work_type = aiResult.work_type_col;
+      if (aiResult.hire_date_col !== null && aiResult.hire_date_col !== undefined) headerMap.hire_date = aiResult.hire_date_col;
+
+      const rows = rawRows.slice(headerRowIndex);
+      console.log("[workers/import] AI 识别表头:", { headerRowIndex, headers, headerMap });
+    } catch (e: unknown) {
+      console.log("[workers/import] AI 分析失败:", (e as Error).message);
+      return NextResponse.json(
+        { error: "表格中未找到『姓名』和『身份证号』列，请检查表格格式", detected_rows: previewRows },
+        { status: 400 }
+      );
     }
   }
 
