@@ -91,8 +91,12 @@ function getBreadcrumbs(pathname: string): { label: string; href?: string }[] {
 	else if (pathname.startsWith("/admin/projects")) crumbs.push({ label: "项目管理" })
 	else if (pathname.startsWith("/admin/teams")) crumbs.push({ label: "班组管理" })
 	else if (pathname.startsWith("/admin/workers")) {
-		if (pathname === "/admin/workers") crumbs.push({ label: "工人安全管理" })
-		else crumbs.push({ label: "工人安全管理", href: "/admin/workers" }, { label: "工人档案" })
+		if (pathname === "/admin/workers") crumbs.push({ label: "花名册" })
+		else crumbs.push({ label: "花名册", href: "/admin/workers" }, { label: "工人详情" })
+	}
+	else if (pathname.startsWith("/admin/safety")) {
+		if (pathname === "/admin/safety") crumbs.push({ label: "工人安全管理" })
+		else crumbs.push({ label: "工人安全管理", href: "/admin/safety" }, { label: "工人档案" })
 	}
 	else if (pathname.startsWith("/admin/materials")) {
 		crumbs.push({ label: "培训材料", href: "/admin/materials" })
