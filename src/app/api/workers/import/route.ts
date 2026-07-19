@@ -16,7 +16,7 @@ export const maxDuration = 60;
 
 // 表头智能识别：常见中英文列名 → 内部字段
 const HEADER_ALIASES: Record<string, string[]> = {
-  name: ["姓名", "工人姓名", "员工姓名", "name", "worker_name", "full_name", "员工"],
+  name: ["姓名", "工人姓名", "员工姓名", "name", "worker_name", "full_name", "员工", "人员姓名", "姓名名称"],
   id_card: [
     "身份证号",
     "身份证",
@@ -27,15 +27,18 @@ const HEADER_ALIASES: Record<string, string[]> = {
     "idcard",
     "id",
     "id_number",
+    "身份证证号",
+    "身份证编号",
+    "证件编号",
   ],
-  phone: ["手机号", "手机", "电话", "联系电话", "phone", "mobile", "tel"],
-  work_type: ["工种", "岗位", "工种类型", "work_type", "job", "role", "position"],
-  team_name: ["班组", "所属班组", "team", "team_name", "group"],
-  hire_date: ["入职日期", "入职时间", "hire_date", "join_date", "start_date"],
-  emergency_contact: ["紧急联系人", "紧急联系人姓名", "emergency_contact"],
-  emergency_phone: ["紧急联系人电话", "紧急联系电话", "emergency_phone"],
-  health_cert_expires_at: ["健康证有效期", "健康证到期", "health_cert_expires_at", "health_cert_expiry"],
-  remark: ["备注", "说明", "remark", "note", "comment"],
+  phone: ["手机号", "手机", "电话", "联系电话", "phone", "mobile", "tel", "电话号码", "联系方式"],
+  work_type: ["工种", "岗位", "工种类型", "work_type", "job", "role", "position", "工作类型", "职务"],
+  team_name: ["班组", "所属班组", "team", "team_name", "group", "班组名称", "施工班组"],
+  hire_date: ["入职日期", "入职时间", "hire_date", "join_date", "start_date", "参加工作日期", "进场日期"],
+  emergency_contact: ["紧急联系人", "紧急联系人姓名", "emergency_contact", "联系人"],
+  emergency_phone: ["紧急联系人电话", "紧急联系电话", "emergency_phone", "联系人电话"],
+  health_cert_expires_at: ["健康证有效期", "健康证到期", "health_cert_expires_at", "health_cert_expiry", "体检有效期"],
+  remark: ["备注", "说明", "remark", "note", "comment", "备注说明"],
 };
 
 // 归一化表头文本
@@ -108,6 +111,10 @@ export async function POST(request: NextRequest) {
   const headerMap = matchHeader(headers);
 
   if (headerMap.name === undefined || headerMap.id_card === undefined) {
+    console.log("[workers/import] 表头识别失败", {
+      headers,
+      headerMap,
+    });
     return NextResponse.json(
       { error: "表格必须包含『姓名』和『身份证号』两列", detected_headers: headers },
       { status: 400 },
