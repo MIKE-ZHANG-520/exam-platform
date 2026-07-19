@@ -15,140 +15,6 @@ import {
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-// 表头智能识别：常见中英文列名 → 内部字段
-const HEADER_ALIASES: Record<string, string[]> = {
-  name: ["姓名", "工人姓名", "员工姓名", "name", "worker_name", "full_name", "员工", "人员姓名", "姓名名称"],
-  id_card: [
-    "身份证号",
-    "身份证",
-    "身份证号码",
-    "证件号",
-    "证件号码",
-    "id_card",
-    "idcard",
-    "id",
-    "id_number",
-    "身份证证号",
-    "身份证编号",
-    "证件编号",
-  ],
-  phone: ["手机号", "手机", "电话", "联系电话", "phone", "mobile", "tel", "电话号码", "联系方式"],
-  work_type: ["工种", "岗位", "工种类型", "work_type", "job", "role", "position", "工作类型", "职务"],
-  team_name: ["班组", "所属班组", "team", "team_name", "group", "班组名称", "施工班组", "班组工种"],
-  hire_date: ["入职日期", "入职时间", "hire_date", "join_date", "start_date", "参加工作日期", "进场日期"],
-  emergency_contact: ["紧急联系人", "紧急联系人姓名", "emergency_contact", "联系人"],
-  emergency_phone: ["紧急联系人电话", "紧急联系电话", "emergency_phone", "联系人电话"],
-  health_cert_expires_at: ["健康证有效期", "健康证到期", "health_cert_expires_at", "health_cert_expiry", "体检有效期"],
-  remark: ["备注", "说明", "remark", "note", "comment", "备注说明"],
-};
-
-// 归一化表头文本
-function normalizeHeader(h: string): string {
-  return h
-    .replace(/[\s\u3000]/g, "")
-    .replace(/[（）()]/g, "")
-    .toLowerCase();
-}
-
-function matchHeader(headers: string[]): Record<string, number> {
-  const map: Record<string, number> = {};
-
-  // 第一轮：精确匹配
-  headers.forEach((h, idx) => {
-    const norm = normalizeHeader(String(h || ""));
-    if (!norm) return;
-    for (const [key, aliases] of Object.entries(HEADER_ALIASES)) {
-      if (map[key] !== undefined) continue;
-      for (const alias of aliases) {
-        if (normalizeHeader(alias) === norm) {
-          map[key] = idx;
-          return;
-        }
-      }
-    }
-  });
-
-  // 第二轮：包含匹配兜底（处理"班组（工种）"等复合列名）
-  // 仅对第一轮未匹配到的列尝试
-  const matchedIndices = new Set(Object.values(map));
-  headers.forEach((h, idx) => {
-    if (matchedIndices.has(idx)) return;
-    const norm = normalizeHeader(String(h || ""));
-    if (!norm) return;
-    for (const [key, aliases] of Object.entries(HEADER_ALIASES)) {
-      if (map[key] !== undefined) continue;
-      for (const alias of aliases) {
-        const normAlias = normalizeHeader(alias);
-        if (normAlias.length >= 2 && norm.includes(normAlias)) {
-          map[key] = idx;
-          return;
-        }
-      }
-    }
-  });
-
-  return map;
-}
-
-/**
- * AI 智能识别表头（fallback）
- * 当规则匹配失败时，让 AI 来识别列名
- */
-async function aiDetectHeaders(headers: string[], rows: unknown[][]): Promise<Record<string, number>> {
-  // 构建 Markdown 表格预览（前 3 行数据）
-  const previewRows = rows.slice(0, 4); // 表头 + 前 3 行数据
-  const mdTable =
-    "| " + headers.map((h) => h || "空").join(" | ") + " |\n" +
-    "| " + headers.map(() => "---").join(" | ") + " |\n" +
-    previewRows
-      .slice(1)
-      .map((row) => "| " + (row as unknown[]).map((c) => String(c ?? "")).join(" | ") + " |")
-      .join("\n");
-
-  const prompt = `你是一个数据解析专家。请分析下面的表格，识别每一列的含义。
-
-表格预览：
-${mdTable}
-
-请返回一个 JSON 对象，将标准字段名映射到列索引（从 0 开始）。
-
-标准字段名列表：
-- name: 姓名
-- id_card: 身份证号
-- phone: 手机号/电话
-- work_type: 工种/岗位
-- team_name: 班组/所属班组
-- hire_date: 入职日期/进场日期
-- emergency_contact: 紧急联系人
-- emergency_phone: 紧急联系人电话
-- health_cert_expires_at: 健康证有效期
-- remark: 备注
-
-只返回你确定能识别的列。必须识别出 name 和 id_card。
-
-返回格式示例：{"name": 2, "id_card": 5, "phone": 7, "team_name": 1}
-
-只返回 JSON，不要其他内容。`;
-
-  try {
-    const llm = makeLLM();
-    const resp = await llm.invoke(
-      [
-        { role: "system", content: "你是一个数据解析专家，擅长识别表格结构。" },
-        { role: "user", content: prompt },
-      ],
-      { temperature: 0.1 },
-    );
-    const result = extractJson<Record<string, number>>(resp.content);
-    console.log("[workers/import] AI 识别表头结果:", result);
-    return result;
-  } catch (e) {
-    const em = e instanceof Error ? e.message : String(e);
-    console.warn("[workers/import] AI 识别表头失败:", em);
-    return {};
-  }
-}
-
 interface ImportRowResult {
   row: number;
   name?: string;
@@ -187,38 +53,32 @@ export async function POST(request: NextRequest) {
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
   if (!sheet) return NextResponse.json({ error: "工作簿为空" }, { status: 400 });
 
-  const rawRows: unknown[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, blankrows: true, defval: "" });
+  // 过滤掉完全空的行
+  const rawRows: unknown[][] = (XLSX.utils.sheet_to_json(sheet, { header: 1, blankrows: false, defval: "" }) as unknown[][])
+    .filter((row) => row.some((cell) => String(cell ?? "").trim() !== ""));
 
-  // 自动查找表头行：在前 10 行中寻找同时包含"姓名"和"身份证"的行
-  let headerRowIndex = -1;
-  for (let i = 0; i < Math.min(10, rawRows.length); i++) {
-    const row = rawRows[i] as unknown[];
-    if (!row || row.length === 0) continue;
-    const hasName = row.some((cell) => String(cell || "").includes("姓名"));
-    const hasId = row.some((cell) => String(cell || "").includes("身份证"));
-    if (hasName && hasId) {
-      headerRowIndex = i;
-      break;
-    }
+  if (rawRows.length < 2) {
+    return NextResponse.json({ error: "表格中未找到数据行" }, { status: 400 });
   }
 
-  // 如果找不到表头行，用 AI 分析前 10 行
-  if (headerRowIndex === -1) {
-    console.log("[workers/import] 未找到表头行，尝试 AI 分析前 10 行");
-    const previewRows = rawRows.slice(0, 10).map((row, idx) => ({
-      index: idx,
-      cells: (row as unknown[]).map((c) => String(c ?? "")),
-    }));
+  // ===== 完全依赖 AI 分析表格，不再硬编码规则 =====
+  const previewRows = rawRows.slice(0, 15).map((row, idx) => ({
+    index: idx,
+    cells: (row as unknown[]).map((c) => String(c ?? "")),
+  }));
 
-    try {
-      const prompt = `你是一位专业的表格分析专家。请分析下面的表格数据，找出表头行和关键列的位置。
+  let headerRowIndex = 0;
+  let headerMap: Record<string, number> = {};
 
-表格数据（前 10 行）：
+  try {
+    const prompt = `你是一位专业的表格分析专家。请分析下面的表格数据，找出表头行和关键列的位置。
+
+表格数据（前 15 行）：
 ${previewRows.map((r) => `第${r.index}行: ${r.cells.join(" | ")}`).join("\n")}
 
 请返回 JSON 格式（不要包含 markdown 代码块标记）：
 {
-  "header_row": 表头行的索引（0-9）,
+  "header_row": 表头行的索引（0-14，即包含"姓名"、"身份证号"等列名的那一行）,
   "name_col": 姓名列的索引,
   "id_card_col": 身份证号列的索引,
   "phone_col": 电话列的索引（没有返回null）,
@@ -227,68 +87,54 @@ ${previewRows.map((r) => `第${r.index}行: ${r.cells.join(" | ")}`).join("\n")}
   "hire_date_col": 入职/进场日期列的索引（没有返回null）
 }`;
 
-      const llm = makeLLM();
-      const response = await llm.invoke([{ role: "user", content: prompt }], { temperature: 0.1 });
-      const text = response.content;
-      const aiResult = extractJson<{
-        header_row: number;
-        name_col: number;
-        id_card_col: number;
-        phone_col?: number | null;
-        team_col?: number | null;
-        work_type_col?: number | null;
-        hire_date_col?: number | null;
-      }>(text);
+    const llm = makeLLM();
+    const response = await llm.invoke([{ role: "user", content: prompt }], { temperature: 0.1 });
+    const text = response.content;
+    const aiResult = extractJson<{
+      header_row: number;
+      name_col: number;
+      id_card_col: number;
+      phone_col?: number | null;
+      team_col?: number | null;
+      work_type_col?: number | null;
+      hire_date_col?: number | null;
+    }>(text);
 
-      console.log("[workers/import] AI 分析结果:", aiResult);
+    console.log("[workers/import] AI 分析结果:", aiResult);
 
-      headerRowIndex = aiResult.header_row;
-      const headers = (rawRows[headerRowIndex] as unknown[]).map((v) => String(v ?? ""));
-      const headerMap: Record<string, number> = {
-        name: aiResult.name_col,
-        id_card: aiResult.id_card_col,
-      };
-      if (aiResult.phone_col !== null && aiResult.phone_col !== undefined) headerMap.phone = aiResult.phone_col;
-      if (aiResult.team_col !== null && aiResult.team_col !== undefined) headerMap.team_name = aiResult.team_col;
-      if (aiResult.work_type_col !== null && aiResult.work_type_col !== undefined) headerMap.work_type = aiResult.work_type_col;
-      if (aiResult.hire_date_col !== null && aiResult.hire_date_col !== undefined) headerMap.hire_date = aiResult.hire_date_col;
+    headerRowIndex = aiResult.header_row;
+    headerMap = {
+      name: aiResult.name_col,
+      id_card: aiResult.id_card_col,
+    };
+    if (aiResult.phone_col !== null && aiResult.phone_col !== undefined) headerMap.phone = aiResult.phone_col;
+    if (aiResult.team_col !== null && aiResult.team_col !== undefined) headerMap.team_name = aiResult.team_col;
+    if (aiResult.work_type_col !== null && aiResult.work_type_col !== undefined) headerMap.work_type = aiResult.work_type_col;
+    if (aiResult.hire_date_col !== null && aiResult.hire_date_col !== undefined) headerMap.hire_date = aiResult.hire_date_col;
 
-      const rows = rawRows.slice(headerRowIndex);
-      console.log("[workers/import] AI 识别表头:", { headerRowIndex, headers, headerMap });
-    } catch (e: unknown) {
-      console.log("[workers/import] AI 分析失败:", (e as Error).message);
-      return NextResponse.json(
-        { error: "表格中未找到『姓名』和『身份证号』列，请检查表格格式", detected_rows: previewRows },
-        { status: 400 }
-      );
-    }
-  }
-
-  const rows = rawRows.slice(headerRowIndex); // 从表头行开始
-  if (rows.length < 2) return NextResponse.json({ error: "表格中未找到数据行" }, { status: 400 });
-
-  const headers = (rows[0] as unknown[]).map((v) => String(v ?? ""));
-  let headerMap = matchHeader(headers);
-
-  // 规则匹配失败时，fallback 到 AI 智能识别
-  if (headerMap.name === undefined || headerMap.id_card === undefined) {
-    console.log("[workers/import] 规则匹配失败，尝试 AI 识别表头", { headers, headerMap });
-    const aiMap = await aiDetectHeaders(headers, rows);
-    // 合并：AI 结果补充规则匹配
-    headerMap = { ...aiMap, ...headerMap };
-    console.log("[workers/import] AI 识别后结果:", headerMap);
-  }
-
-  if (headerMap.name === undefined || headerMap.id_card === undefined) {
-    console.log("[workers/import] 表头识别失败（规则+AI 均失败）", {
-      headers,
-      headerMap,
-    });
+    console.log("[workers/import] AI 识别表头:", { headerRowIndex, headerMap });
+  } catch (e: unknown) {
+    console.error("[workers/import] AI 分析失败:", (e as Error).message);
     return NextResponse.json(
-      { error: "表格必须包含『姓名』和『身份证号』两列", detected_headers: headers },
+      {
+        error: "AI 分析表格失败，请检查表格格式是否正确",
+        detail: (e as Error).message,
+        detected_rows: previewRows
+      },
+      { status: 400 }
+    );
+  }
+
+  if (headerMap.name === undefined || headerMap.id_card === undefined) {
+    console.error("[workers/import] AI 未找到必需列", { headerMap });
+    return NextResponse.json(
+      { error: "表格必须包含『姓名』和『身份证号』两列", detected_rows: previewRows },
       { status: 400 },
     );
   }
+
+  // 从表头行开始，提取数据行
+  const rows = rawRows.slice(headerRowIndex);
 
   const client = db();
 
