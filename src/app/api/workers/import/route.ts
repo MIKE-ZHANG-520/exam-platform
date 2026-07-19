@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { makeLLM, extractJson } from "@/lib/ai";
 import {
   encryptSensitive,
   maskIdCard,
@@ -89,6 +90,65 @@ function matchHeader(headers: string[]): Record<string, number> {
   return map;
 }
 
+/**
+ * AI 智能识别表头（fallback）
+ * 当规则匹配失败时，让 AI 来识别列名
+ */
+async function aiDetectHeaders(headers: string[], rows: unknown[][]): Promise<Record<string, number>> {
+  // 构建 Markdown 表格预览（前 3 行数据）
+  const previewRows = rows.slice(0, 4); // 表头 + 前 3 行数据
+  const mdTable =
+    "| " + headers.map((h) => h || "空").join(" | ") + " |\n" +
+    "| " + headers.map(() => "---").join(" | ") + " |\n" +
+    previewRows
+      .slice(1)
+      .map((row) => "| " + (row as unknown[]).map((c) => String(c ?? "")).join(" | ") + " |")
+      .join("\n");
+
+  const prompt = `你是一个数据解析专家。请分析下面的表格，识别每一列的含义。
+
+表格预览：
+${mdTable}
+
+请返回一个 JSON 对象，将标准字段名映射到列索引（从 0 开始）。
+
+标准字段名列表：
+- name: 姓名
+- id_card: 身份证号
+- phone: 手机号/电话
+- work_type: 工种/岗位
+- team_name: 班组/所属班组
+- hire_date: 入职日期/进场日期
+- emergency_contact: 紧急联系人
+- emergency_phone: 紧急联系人电话
+- health_cert_expires_at: 健康证有效期
+- remark: 备注
+
+只返回你确定能识别的列。必须识别出 name 和 id_card。
+
+返回格式示例：{"name": 2, "id_card": 5, "phone": 7, "team_name": 1}
+
+只返回 JSON，不要其他内容。`;
+
+  try {
+    const llm = makeLLM();
+    const resp = await llm.invoke(
+      [
+        { role: "system", content: "你是一个数据解析专家，擅长识别表格结构。" },
+        { role: "user", content: prompt },
+      ],
+      { temperature: 0.1 },
+    );
+    const result = extractJson<Record<string, number>>(resp.content);
+    console.log("[workers/import] AI 识别表头结果:", result);
+    return result;
+  } catch (e) {
+    const em = e instanceof Error ? e.message : String(e);
+    console.warn("[workers/import] AI 识别表头失败:", em);
+    return {};
+  }
+}
+
 interface ImportRowResult {
   row: number;
   name?: string;
@@ -145,10 +205,19 @@ export async function POST(request: NextRequest) {
   if (rows.length < 2) return NextResponse.json({ error: "表格中未找到数据行" }, { status: 400 });
 
   const headers = (rows[0] as unknown[]).map((v) => String(v ?? ""));
-  const headerMap = matchHeader(headers);
+  let headerMap = matchHeader(headers);
+
+  // 规则匹配失败时，fallback 到 AI 智能识别
+  if (headerMap.name === undefined || headerMap.id_card === undefined) {
+    console.log("[workers/import] 规则匹配失败，尝试 AI 识别表头", { headers, headerMap });
+    const aiMap = await aiDetectHeaders(headers, rows);
+    // 合并：AI 结果补充规则匹配
+    headerMap = { ...aiMap, ...headerMap };
+    console.log("[workers/import] AI 识别后结果:", headerMap);
+  }
 
   if (headerMap.name === undefined || headerMap.id_card === undefined) {
-    console.log("[workers/import] 表头识别失败", {
+    console.log("[workers/import] 表头识别失败（规则+AI 均失败）", {
       headers,
       headerMap,
     });
