@@ -33,7 +33,7 @@ const HEADER_ALIASES: Record<string, string[]> = {
   ],
   phone: ["手机号", "手机", "电话", "联系电话", "phone", "mobile", "tel", "电话号码", "联系方式"],
   work_type: ["工种", "岗位", "工种类型", "work_type", "job", "role", "position", "工作类型", "职务"],
-  team_name: ["班组", "所属班组", "team", "team_name", "group", "班组名称", "施工班组"],
+  team_name: ["班组", "所属班组", "team", "team_name", "group", "班组名称", "施工班组", "班组工种"],
   hire_date: ["入职日期", "入职时间", "hire_date", "join_date", "start_date", "参加工作日期", "进场日期"],
   emergency_contact: ["紧急联系人", "紧急联系人姓名", "emergency_contact", "联系人"],
   emergency_phone: ["紧急联系人电话", "紧急联系电话", "emergency_phone", "联系人电话"],
@@ -51,18 +51,41 @@ function normalizeHeader(h: string): string {
 
 function matchHeader(headers: string[]): Record<string, number> {
   const map: Record<string, number> = {};
+
+  // 第一轮：精确匹配
   headers.forEach((h, idx) => {
     const norm = normalizeHeader(String(h || ""));
+    if (!norm) return;
     for (const [key, aliases] of Object.entries(HEADER_ALIASES)) {
       if (map[key] !== undefined) continue;
       for (const alias of aliases) {
         if (normalizeHeader(alias) === norm) {
           map[key] = idx;
-          break;
+          return;
         }
       }
     }
   });
+
+  // 第二轮：包含匹配兜底（处理"班组（工种）"等复合列名）
+  // 仅对第一轮未匹配到的列尝试
+  const matchedIndices = new Set(Object.values(map));
+  headers.forEach((h, idx) => {
+    if (matchedIndices.has(idx)) return;
+    const norm = normalizeHeader(String(h || ""));
+    if (!norm) return;
+    for (const [key, aliases] of Object.entries(HEADER_ALIASES)) {
+      if (map[key] !== undefined) continue;
+      for (const alias of aliases) {
+        const normAlias = normalizeHeader(alias);
+        if (normAlias.length >= 2 && norm.includes(normAlias)) {
+          map[key] = idx;
+          return;
+        }
+      }
+    }
+  });
+
   return map;
 }
 
