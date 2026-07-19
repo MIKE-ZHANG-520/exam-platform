@@ -66,9 +66,9 @@ interface NavItem {
 
 const NAV: NavItem[] = [
 	{ href: "/admin/dashboard", label: "数据看板", icon: LayoutDashboard, group: "总览" },
-	{ href: "/admin/projects", label: "项目管理", icon: FolderKanban, group: "组织架构" },
-	{ href: "/admin/teams", label: "班组管理", icon: Users2, group: "组织架构" },
-	{ href: "/admin/workers", label: "花名册", icon: UserSquare2, group: "组织架构" },
+	{ href: "/admin/projects", label: "项目管理", icon: FolderKanban, group: "组织架构", adminOnly: true },
+	{ href: "/admin/teams", label: "班组管理", icon: Users2, group: "组织架构", adminOnly: true },
+	{ href: "/admin/workers", label: "花名册", icon: UserSquare2, group: "组织架构", adminOnly: true },
 	{ href: "/admin/materials", label: "培训材料", icon: FileText, group: "培训业务" },
 	{ href: "/admin/banks", label: "题库管理", icon: NotebookPen, group: "培训业务" },
 	{ href: "/admin/exams", label: "考试试卷", icon: BookOpen, group: "培训业务" },
@@ -106,11 +106,11 @@ function getBreadcrumbs(pathname: string): { label: string; href?: string }[] {
 	return crumbs
 }
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({ children, user }: { children: React.ReactNode; user?: Me | null }) {
 	const pathname = usePathname()
 	const router = useRouter()
-	const [me, setMe] = useState<Me | null>(null)
-	const [loading, setLoading] = useState(true)
+	const [me, setMe] = useState<Me | null>(user ?? null)
+	const [loading, setLoading] = useState(!user)
 	const [pwdOpen, setPwdOpen] = useState(false)
 	const [pwdForm, setPwdForm] = useState({ oldPassword: "", newPassword: "", confirmPassword: "" })
 	const [pwdSaving, setPwdSaving] = useState(false)
@@ -118,6 +118,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 	const [showNew, setShowNew] = useState(false)
 
 	useEffect(() => {
+		if (user) return
 		fetch("/api/auth/me")
 			.then((r) => r.json())
 			.then((d) => {
@@ -125,7 +126,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 				setLoading(false)
 			})
 			.catch(() => setLoading(false))
-	}, [])
+	}, [user])
 
 	const logout = async () => {
 		await fetch("/api/auth/logout", { method: "POST" })
