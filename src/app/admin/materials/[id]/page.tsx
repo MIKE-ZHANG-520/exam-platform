@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
 import { apiGet, apiPatch, apiPost, apiDelete } from "@/lib/http"
 import { toast } from "sonner"
-import { ArrowLeft, Loader2, Sparkles, Pencil, Save, CheckCircle2, XCircle, ListTree, ShieldAlert, FileText, Eye } from "lucide-react"
+import { ArrowLeft, Loader2, Sparkles, Pencil, Save, CheckCircle2, XCircle, ListTree, ShieldAlert, FileText, Eye, Download } from "lucide-react"
 import { OutlineRenderer } from "@/components/admin/outline-renderer"
 import { FilePreview } from "@/components/admin/file-preview"
 
@@ -826,24 +826,46 @@ export default function MaterialDetailPage() {
 					</CardHeader>
 					<CardContent className="flex flex-wrap gap-2">
 						{data.banks.map((b) => (
-							<Link key={b.id} href={`/admin/banks/${b.id}`}>
-								<div className="flex items-center gap-2 rounded-lg border border-gray-200 hover:border-[#1677ff] hover:bg-[#eff6ff]/50 px-3 py-2 transition">
-									<div className="w-8 h-8 rounded-lg bg-[#eff6ff] flex items-center justify-center text-[#1677ff]">
-										<ListTree className="w-4 h-4" />
-									</div>
-									<div>
-										<div className="text-sm font-medium text-gray-800">{b.title}</div>
-										<div className="text-[11px] text-gray-500 mt-0.5">
-											{b.difficulty === "easy" ? "简易" : "中等"} · {b.total_count} 题
-											{b.status && (
-												<span className={`ml-2 ${b.status === "published" ? "text-green-600" : "text-orange-600"}`}>
-													· {b.status === "published" ? "已发布" : "待审"}
-												</span>
-											)}
+							<div key={b.id} className="flex items-center gap-2">
+								<Link href={`/admin/banks/${b.id}`}>
+									<div className="flex items-center gap-2 rounded-lg border border-gray-200 hover:border-[#1677ff] hover:bg-[#eff6ff]/50 px-3 py-2 transition">
+										<div className="w-8 h-8 rounded-lg bg-[#eff6ff] flex items-center justify-center text-[#1677ff]">
+											<ListTree className="w-4 h-4" />
+										</div>
+										<div>
+											<div className="text-sm font-medium text-gray-800">{b.title}</div>
+											<div className="text-[11px] text-gray-500 mt-0.5">
+												{b.difficulty === "easy" ? "简易" : "中等"} · {b.total_count} 题
+												{b.status && (
+													<span className={`ml-2 ${b.status === "published" ? "text-green-600" : "text-orange-600"}`}>
+														· {b.status === "published" ? "已发布" : "待审"}
+													</span>
+												)}
+											</div>
 										</div>
 									</div>
+								</Link>
+								<div className="flex flex-col gap-1">
+									<Button
+										variant="outline"
+										size="sm"
+										className="h-7 text-xs gap-1"
+										onClick={() => window.open(`/api/banks/${b.id}/export?answer=true`, "_blank")}
+									>
+										<Download className="w-3 h-3" />
+										含答案
+									</Button>
+									<Button
+										variant="outline"
+										size="sm"
+										className="h-7 text-xs gap-1"
+										onClick={() => window.open(`/api/banks/${b.id}/export?answer=false`, "_blank")}
+									>
+										<Download className="w-3 h-3" />
+										空白卷
+									</Button>
 								</div>
-							</Link>
+							</div>
 						))}
 					</CardContent>
 				</Card>

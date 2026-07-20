@@ -237,6 +237,24 @@ export default function ExamsPage() {
                       记录 <ArrowRight className="ml-auto h-3 w-3" />
                     </Button>
                   </Link>
+                </div>
+                <div className="mt-2 flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 hover:border-[#1677ff] hover:text-[#1677ff]"
+                    onClick={() => window.open(`/api/exams/${exam.id}/export?answer=true`, "_blank")}
+                  >
+                    <Download className="mr-1 h-3 w-3" /> 含答案
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 hover:border-[#1677ff] hover:text-[#1677ff]"
+                    onClick={() => window.open(`/api/exams/${exam.id}/export?answer=false`, "_blank")}
+                  >
+                    <Download className="mr-1 h-3 w-3" /> 空白卷
+                  </Button>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <Button variant="ghost" size="icon" className="text-red-500 hover:bg-red-50 hover:text-red-600">
