@@ -92,56 +92,14 @@ export async function POST(req: NextRequest, { params }: Params) {
       // 根据文件类型解析内容
       const fileType = material.file_type?.toLowerCase();
       if (fileType === "pdf") {
-        // PDF文件使用pdf2json解析
+        // PDF文件使用pdf-parse解析
         const arrayBuffer = await fileResp.arrayBuffer();
         try {
-          const PDFParser = require("pdf2json");
-          const pdfParser = new PDFParser();
-          
-          await new Promise((resolve, reject) => {
-            pdfParser.on("pdfParser_dataError", reject);
-            pdfParser.on("pdfParser_dataReady", resolve);
-            pdfParser.parseBuffer(Buffer.from(arrayBuffer));
-          });
-          
-          // 提取文本内容 - 手动遍历页面和文本
-          // pdf2json 的 getRawTextContent() 在某些情况下返回空字符串
-          const pdfData = pdfParser.data as {
-            Pages?: Array<{
-              Texts?: Array<{
-                R?: Array<{ T?: string }>;
-              }>;
-            }>;
-          };
-          
-          const textParts: string[] = [];
-          if (pdfData?.Pages) {
-            for (const page of pdfData.Pages) {
-              if (page.Texts) {
-                for (const textItem of page.Texts) {
-                  if (textItem.R) {
-                    for (const run of textItem.R) {
-                      if (run.T) {
-                        textParts.push(decodeURIComponent(run.T));
-                      }
-                    }
-                  }
-                }
-              }
-              textParts.push("\n");
-            }
-          }
-          text = textParts.join(" ").trim();
+          const pdfParse = require("pdf-parse");
+          const result = await pdfParse(Buffer.from(arrayBuffer));
+          text = result.text;
         } catch (pdfErr) {
-          // pdf2json 的错误可能是对象 { parserError: string } 或 Error
-          let errMsg: string;
-          if (pdfErr && typeof pdfErr === "object" && "parserError" in pdfErr) {
-            errMsg = String((pdfErr as { parserError: unknown }).parserError);
-          } else if (pdfErr instanceof Error) {
-            errMsg = pdfErr.message;
-          } else {
-            errMsg = String(pdfErr);
-          }
+          const errMsg = pdfErr instanceof Error ? pdfErr.message : String(pdfErr);
           throw new Error(`PDF解析失败：${errMsg}`);
         }
       } else if (fileType === "md" || fileType === "txt") {
