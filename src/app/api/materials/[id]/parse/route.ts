@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { makeFetch, makeLLM, extractJson, DEFAULT_MODEL, SAFETY_EXPERT_ROLE } from "@/lib/ai";
+import { makeLLM, extractJson, DEFAULT_MODEL, SAFETY_EXPERT_ROLE } from "@/lib/ai";
 import { presignUrl } from "@/lib/storage";
 import { requireSession } from "@/lib/auth";
 
@@ -81,22 +81,81 @@ export async function POST(req: NextRequest, { params }: Params) {
         throw new Error(`无法访问文件：存储返回 ${headResp.status}`);
       }
       
-      // 使用 fetchClient 解析文件内容
-      const fetchClient = makeFetch(req.headers);
-      const resp = await fetchClient.fetch(fileUrl);
-      if (resp.status_code && resp.status_code !== 0) {
-        const errMsg = resp.status_message || "文件解析失败";
-        if (errMsg.includes("404")) {
-          throw new Error("文件在存储中不存在，可能上传失败。请删除此材料后重新上传");
-        }
-        throw new Error(errMsg);
+      // 直接获取文件内容
+      const fileResp = await fetch(fileUrl);
+      if (!fileResp.ok) {
+        throw new Error(`获取文件失败：HTTP ${fileResp.status}`);
       }
-      text = (resp.content || [])
-        .filter((item) => item.type === "text" && item.text)
-        .map((item) => item.text as string)
-        .join("\n")
-        .trim();
+      
+      // 根据文件类型解析内容
+      const fileType = material.file_type?.toLowerCase();
+      if (fileType === "pdf") {
+        // PDF文件使用pdf2json解析
+        const arrayBuffer = await fileResp.arrayBuffer();
+        try {
+          const PDFParser = require("pdf2json");
+          const pdfParser = new PDFParser();
+          
+          await new Promise((resolve, reject) => {
+            pdfParser.on("pdfParser_dataError", reject);
+            pdfParser.on("pdfParser_dataReady", resolve);
+            pdfParser.parseBuffer(Buffer.from(arrayBuffer));
+          });
+          
+          // 提取文本内容 - 手动遍历页面和文本
+          // pdf2json 的 getRawTextContent() 在某些情况下返回空字符串
+          const pdfData = pdfParser.data as {
+            Pages?: Array<{
+              Texts?: Array<{
+                R?: Array<{ T?: string }>;
+              }>;
+            }>;
+          };
+          
+          const textParts: string[] = [];
+          if (pdfData?.Pages) {
+            for (const page of pdfData.Pages) {
+              if (page.Texts) {
+                for (const textItem of page.Texts) {
+                  if (textItem.R) {
+                    for (const run of textItem.R) {
+                      if (run.T) {
+                        textParts.push(decodeURIComponent(run.T));
+                      }
+                    }
+                  }
+                }
+              }
+              textParts.push("\n");
+            }
+          }
+          text = textParts.join(" ").trim();
+        } catch (pdfErr) {
+          // pdf2json 的错误可能是对象 { parserError: string } 或 Error
+          let errMsg: string;
+          if (pdfErr && typeof pdfErr === "object" && "parserError" in pdfErr) {
+            errMsg = String((pdfErr as { parserError: unknown }).parserError);
+          } else if (pdfErr instanceof Error) {
+            errMsg = pdfErr.message;
+          } else {
+            errMsg = String(pdfErr);
+          }
+          throw new Error(`PDF解析失败：${errMsg}`);
+        }
+      } else if (fileType === "md" || fileType === "txt") {
+        // 文本文件直接读取
+        text = await fileResp.text();
+      } else if (fileType === "docx") {
+        // DOCX文件需要特殊处理，暂时使用占位提示
+        throw new Error("DOCX文件解析暂不支持，请转换为PDF或Markdown格式后重新上传");
+      } else if (fileType === "xlsx") {
+        // XLSX文件需要特殊处理，暂时使用占位提示
+        throw new Error("XLSX文件解析暂不支持，请转换为PDF或Markdown格式后重新上传");
+      } else {
+        throw new Error(`不支持的文件类型：${fileType}`);
+      }
 
+      text = text.trim();
       if (!text) throw new Error("文件解析后内容为空");
     }
 
