@@ -430,6 +430,30 @@ export default function MaterialDetailPage() {
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [data?.banks?.length])
 
+	// 自动轮询解析状态：如果材料正在解析，每 3 秒刷新一次
+	useEffect(() => {
+		if (!data) return
+		const status = data.material.status
+		if (status !== "parsing" && status !== "uploaded") return
+
+		const interval = setInterval(() => {
+			apiGet<Response>(`/api/materials/${id}`)
+				.then((res) => {
+					setData(res)
+					// 解析完成后停止轮询
+					if (res.material.status !== "parsing" && res.material.status !== "uploaded") {
+						clearInterval(interval)
+						if (res.material.status === "parsed" || res.material.status === "ready") {
+							toast.success("文件解析完成，现在可以生成提纲和题库了")
+						}
+					}
+				})
+				.catch(() => {})
+		}, 3000)
+
+		return () => clearInterval(interval)
+	}, [data?.material?.status, id])
+
 	const load = useCallback(() => {
 		setLoading(true)
 		apiGet<Response>(`/api/materials/${id}`)

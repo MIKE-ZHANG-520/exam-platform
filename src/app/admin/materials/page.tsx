@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -16,6 +17,7 @@ import {
 	ArrowRight,
 	Inbox,
 	CloudUpload,
+	CheckCircle2,
 } from "lucide-react"
 import Link from "next/link"
 import {
@@ -52,9 +54,11 @@ const STATUS_MAP: Record<string, { label: string; className: string }> = {
 }
 
 export default function MaterialsPage() {
+	const router = useRouter()
 	const [items, setItems] = useState<Material[]>([])
 	const [loading, setLoading] = useState(true)
 	const [uploading, setUploading] = useState(false)
+	const [parsingStatus, setParsingStatus] = useState<{ materialId: string; progress: string } | null>(null)
 	const [drag, setDrag] = useState(false)
 	const fileRef = useRef<HTMLInputElement>(null)
 
@@ -70,19 +74,67 @@ export default function MaterialsPage() {
 		load()
 	}, [load])
 
+	const pollParseStatus = async (materialId: string) => {
+		const maxAttempts = 60 // 最多轮询 60 次（约 2 分钟）
+		let attempts = 0
+
+		while (attempts < maxAttempts) {
+			await new Promise((r) => setTimeout(r, 2000)) // 每 2 秒轮询一次
+			attempts++
+
+			try {
+				const res = await apiGet<{ material: Material }>(`/api/materials/${materialId}`)
+				const status = res.material.status
+
+				if (status === "parsed" || status === "ready") {
+					setParsingStatus({ materialId, progress: "解析完成" })
+					return true
+				} else if (status === "failed") {
+					toast.error(`解析失败：${res.material.error_message || "未知错误"}`)
+					return false
+				} else if (status === "parsing") {
+					setParsingStatus({ materialId, progress: `正在解析... (${attempts * 2}秒)` })
+				}
+			} catch {
+				// 忽略单次轮询错误，继续重试
+			}
+		}
+
+		toast.error("解析超时，请稍后刷新页面查看")
+		return false
+	}
+
 	const onUpload = async (file: File) => {
 		setUploading(true)
+		setParsingStatus(null)
 		try {
 			const fd = new FormData()
 			fd.append("file", file)
 			const res = await apiPost<{ material: { id: string } }>("/api/materials", fd)
+			const materialId = res.material.id
+
 			toast.success("上传成功，正在解析文件内容...")
-			apiPost(`/api/materials/${res.material.id}/parse`, {}).catch(() => {})
-			setTimeout(load, 1500)
+			setParsingStatus({ materialId, progress: "开始解析..." })
+
+			// 触发解析
+			apiPost(`/api/materials/${materialId}/parse`, {}).catch(() => {})
+
+			// 轮询解析状态
+			const success = await pollParseStatus(materialId)
+
+			if (success) {
+				toast.success("解析完成！即将跳转到详情页...")
+				setTimeout(() => {
+					router.push(`/admin/materials/${materialId}`)
+				}, 1000)
+			} else {
+				load() // 刷新列表
+			}
 		} catch (e) {
 			toast.error((e as Error).message)
 		} finally {
 			setUploading(false)
+			setParsingStatus(null)
 			if (fileRef.current) fileRef.current.value = ""
 		}
 	}
@@ -100,6 +152,18 @@ export default function MaterialsPage() {
 	return (
 		<div className="space-y-6">
 			<PageHeader title="培训材料" description="支持 docx / xlsx / pdf / pptx / md，上传后 AI 自动解析并可生成提纲与题库" />
+
+			{/* 解析进度提示 */}
+			{parsingStatus && (
+				<div className="brand-card rounded-xl border border-blue-200 bg-blue-50/50 p-4 flex items-center gap-3">
+					<Loader2 className="w-5 h-5 text-[#1677ff] animate-spin shrink-0" />
+					<div className="flex-1">
+						<div className="text-sm font-medium text-blue-900">正在解析文件</div>
+						<div className="text-xs text-blue-700 mt-0.5">{parsingStatus.progress}</div>
+					</div>
+					<CheckCircle2 className="w-4 h-4 text-blue-300" />
+				</div>
+			)}
 
 			{/* 上传区（拖拽 + 点击） */}
 			<div
