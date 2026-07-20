@@ -92,6 +92,7 @@ export default function WorkersPage() {
   const [importProjectId, setImportProjectId] = useState<string>("none")
   const [importTeamId, setImportTeamId] = useState<string>("none")
   const fileRef = useRef<HTMLInputElement | null>(null)
+  const [previewData, setPreviewData] = useState<{ headers: string[]; rows: string[][]; colMap: Record<number, string> } | null>(null)
 
   const load = useCallback(() => {
     setLoading(true)
@@ -233,6 +234,83 @@ export default function WorkersPage() {
     a.download = "花名册导入模板.csv"
     a.click()
     URL.revokeObjectURL(url)
+  }
+
+  // 列名映射（与后端一致）
+  const COLUMN_ALIASES: Record<string, string[]> = {
+    name: ["姓名", "名字", "工人姓名", "人员姓名", "name"],
+    id_card: ["身份证号", "身份证", "证件号", "id card"],
+    phone: ["手机号", "电话", "联系电话", "phone", "mobile"],
+    gender: ["性别", "gender", "sex"],
+    work_type: ["工种", "岗位", "职务", "work type", "job"],
+    team_name: ["班组", "班组名称", "team", "group"],
+    project: ["项目", "项目名称", "project"],
+    hire_date: ["入职日期", "入职时间", "进场日期", "hire date"],
+  }
+
+  const matchColumn = (header: string): string | null => {
+    const normalized = header.trim().toLowerCase()
+    for (const [field, aliases] of Object.entries(COLUMN_ALIASES)) {
+      for (const alias of aliases) {
+        if (normalized === alias.toLowerCase()) return field
+      }
+      for (const alias of aliases) {
+        if (normalized.includes(alias.toLowerCase()) || alias.toLowerCase().includes(normalized)) return field
+      }
+    }
+    return null
+  }
+
+  // 文件选择后预览
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setPreviewData(null)
+    setImportResult(null)
+
+    try {
+      const XLSX = await import("xlsx")
+      const buffer = await file.arrayBuffer()
+      const wb = XLSX.read(buffer, { type: "buffer" })
+      const sheet = wb.Sheets[wb.SheetNames[0]]
+      if (!sheet) return toast.error("工作簿为空")
+
+      const rows: string[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" }) as string[][]
+      if (rows.length < 2) return toast.error("表格中未找到数据行")
+
+      // 查找表头行
+      let headerIdx = -1
+      const colMap: Record<number, string> = {}
+      for (let i = 0; i < Math.min(10, rows.length); i++) {
+        const row = rows[i]
+        if (!row || row.length === 0) continue
+        let matchCount = 0
+        const tempMap: Record<number, string> = {}
+        for (let c = 0; c < row.length; c++) {
+          const cell = String(row[c] ?? "").trim()
+          if (!cell) continue
+          const field = matchColumn(cell)
+          if (field) {
+            tempMap[c] = field
+            matchCount++
+          }
+        }
+        if (matchCount >= 3 && Object.values(tempMap).includes("name")) {
+          headerIdx = i
+          Object.assign(colMap, tempMap)
+          break
+        }
+      }
+
+      if (headerIdx < 0) return toast.error("无法识别表头，请确保包含「姓名」「身份证号」等列名")
+
+      const headers = rows[headerIdx].map(String)
+      const dataRows = rows.slice(headerIdx + 1, headerIdx + 11).map(r => r.map(String)) // 预览前10行
+
+      setPreviewData({ headers, rows: dataRows, colMap })
+    } catch (err) {
+      toast.error(`文件解析失败：${(err as Error).message}`)
+    }
   }
 
   return (
@@ -470,7 +548,7 @@ export default function WorkersPage() {
             <div className="border-2 border-dashed border-gray-200 rounded-lg p-4 flex items-center gap-3 hover:border-blue-400 transition-colors">
               <FileSpreadsheet className="w-8 h-8 text-blue-500 shrink-0" />
               <div className="flex-1 min-w-0">
-                <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" className="text-sm w-full" />
+                <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" className="text-sm w-full" onChange={handleFileSelect} />
                 <div className="text-xs text-gray-400 mt-1">识别列名：姓名、身份证号、手机号、性别、工种、班组、项目、入职日期、状态（支持中英文）</div>
               </div>
             </div>
@@ -480,6 +558,42 @@ export default function WorkersPage() {
                 下载 CSV 模板
               </Button>
             </div>
+            {/* 预览表格 */}
+            {previewData && (
+              <div className="border rounded-lg overflow-hidden">
+                <div className="bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 flex items-center justify-between">
+                  <span>预览（前 {previewData.rows.length} 行）</span>
+                  <span className="text-xs text-blue-500">
+                    已识别：{Object.values(previewData.colMap).filter(v => v === "name" || v === "id_card" || v === "phone").length}/3 关键字段
+                  </span>
+                </div>
+                <div className="overflow-x-auto max-h-[200px]">
+                  <table className="w-full text-xs">
+                    <thead className="bg-gray-50 sticky top-0">
+                      <tr>
+                        {previewData.headers.map((h, i) => (
+                          <th key={i} className="px-2 py-1.5 text-left font-medium text-gray-600 whitespace-nowrap">
+                            {h}
+                            {previewData.colMap[i] && <span className="ml-1 text-blue-500">✓</span>}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {previewData.rows.map((row, ri) => (
+                        <tr key={ri} className="border-t hover:bg-gray-50">
+                          {previewData.headers.map((_, ci) => (
+                            <td key={ci} className="px-2 py-1 whitespace-nowrap text-gray-700">
+                              {row[ci] || <span className="text-gray-300">-</span>}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
             {importResult && (
               <div className="border rounded-lg p-3 bg-gray-50 space-y-2 max-h-[240px] overflow-auto">
                 <div className="text-sm">
