@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { apiGet, fmtDate, fmtDuration } from "@/lib/http";
 import { toast } from "sonner";
-import { Loader2, Eye, Download, Search, FileText, ChevronDown, ChevronRight, LayoutList, Layers } from "lucide-react";
+import { Loader2, Eye, Download, Search, FileText, ChevronDown, ChevronRight, LayoutList, Layers, Users, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/admin/page-header";
 
 interface Record {
@@ -37,14 +37,18 @@ function RecordsInner() {
   const [items, setItems] = useState<Record[]>([]);
   const [exams, setExams] = useState<Array<{ id: string; title: string }>>([]);
   const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState<"flat" | "grouped">("flat");
+  const [viewMode, setViewMode] = useState<"flat" | "grouped" | "byPerson">("flat");
   const [expandedExams, setExpandedExams] = useState<Set<string>>(new Set());
+  const [expandedPersons, setExpandedPersons] = useState<Set<string>>(new Set());
+  const [userRole, setUserRole] = useState<string>("user");
 
-  const [filter, setFilter] = useState<{ name: string; team: string; exam_id: string; is_pass: "all" | "true" | "false" }>({
+  const [filter, setFilter] = useState<{ name: string; team: string; exam_id: string; is_pass: "all" | "true" | "false"; start_date: string; end_date: string }>({
     name: "",
     team: "",
     exam_id: initialExam,
     is_pass: "all",
+    start_date: "",
+    end_date: "",
   });
 
   const load = useCallback(() => {
@@ -54,6 +58,8 @@ function RecordsInner() {
     if (filter.team) qs.set("team", filter.team);
     if (filter.exam_id) qs.set("exam_id", filter.exam_id);
     if (filter.is_pass !== "all") qs.set("is_pass", filter.is_pass);
+    if (filter.start_date) qs.set("start_date", filter.start_date);
+    if (filter.end_date) qs.set("end_date", filter.end_date);
     apiGet<{ items: Record[] }>(`/api/records?${qs.toString()}`)
       .then((r) => setItems(r.items))
       .catch((e: Error) => toast.error(e.message))
@@ -67,6 +73,10 @@ function RecordsInner() {
   useEffect(() => {
     apiGet<{ items: Array<{ id: string; title: string }> }>("/api/exams")
       .then((r) => setExams(r.items))
+      .catch(() => {});
+    // 获取当前用户角色
+    apiGet<{ role: string }>("/api/auth/me")
+      .then((r) => setUserRole(r.role))
       .catch(() => {});
   }, []);
 
@@ -134,6 +144,65 @@ function RecordsInner() {
     setExpandedExams(new Set());
   };
 
+  // 按人员分组
+  const personGroupedData = useCallback(() => {
+    const groups = new Map<string, { person: { name: string; phone: string }; records: Record[] }>();
+    
+    for (const record of items) {
+      const key = `${record.candidate_name}_${record.phone || ""}`;
+      if (!groups.has(key)) {
+        groups.set(key, {
+          person: { name: record.candidate_name, phone: record.phone || "" },
+          records: [],
+        });
+      }
+      groups.get(key)!.records.push(record);
+    }
+    
+    return Array.from(groups.values()).map(group => {
+      const records = group.records.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      const latestRecord = records[0];
+      const bestScore = Math.max(...records.filter(r => r.score !== null).map(r => r.score || 0), 0);
+      
+      return {
+        ...group,
+        stats: {
+          total: records.length,
+          bestScore,
+          latestScore: latestRecord.score,
+          latestPass: latestRecord.is_pass,
+        },
+      };
+    }).sort((a, b) => b.stats.total - a.stats.total);
+  }, [items]);
+
+  // 切换人员分组展开状态
+  const togglePerson = (personKey: string) => {
+    setExpandedPersons(prev => {
+      const next = new Set(prev);
+      if (next.has(personKey)) {
+        next.delete(personKey);
+      } else {
+        next.add(personKey);
+      }
+      return next;
+    });
+  };
+
+  // 删除记录
+  const deleteRecord = async (id: string) => {
+    if (!confirm("确定要删除这条考试记录吗？此操作不可恢复。")) return;
+    try {
+      const res = await fetch(`/api/records/${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "删除失败");
+      toast.success("删除成功");
+      load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "删除失败");
+    }
+  };
+
   const exportCsv = () => {
     const rows: string[] = [
       ["姓名", "班组", "手机号", "试卷", "得分", "是否通过", "次数", "用时", "考试时间"].join(","),
@@ -194,6 +263,17 @@ function RecordsInner() {
                 <Layers className="w-4 h-4" />
                 按试卷分组
               </button>
+              <button
+                onClick={() => setViewMode("byPerson")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-all ${
+                  viewMode === "byPerson"
+                    ? "bg-white text-[#1677ff] shadow-sm"
+                    : "text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                <Users className="w-4 h-4" />
+                按人员分组
+              </button>
             </div>
             <Button variant="outline" onClick={exportCsv} disabled={items.length === 0} className="hover:border-[#1677ff] hover:text-[#1677ff]">
               <Download className="mr-1 h-4 w-4" /> 导出 CSV
@@ -243,6 +323,14 @@ function RecordsInner() {
                 <SelectItem value="false">未通过</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+          <div>
+            <Label className="mb-1 block text-xs text-gray-500">开始日期</Label>
+            <Input type="date" value={filter.start_date} onChange={(e) => setFilter({ ...filter, start_date: e.target.value })} />
+          </div>
+          <div>
+            <Label className="mb-1 block text-xs text-gray-500">结束日期</Label>
+            <Input type="date" value={filter.end_date} onChange={(e) => setFilter({ ...filter, end_date: e.target.value })} />
           </div>
         </div>
       </div>
@@ -299,11 +387,18 @@ function RecordsInner() {
                       <TableCell className="text-gray-600">{fmtDuration(r.duration_sec)}</TableCell>
                       <TableCell className="text-gray-500">{fmtDate(r.created_at)}</TableCell>
                       <TableCell className="text-right">
-                        <Link href={`/admin/records/${r.id}`}>
-                          <Button variant="ghost" size="sm" className="hover:text-[#1677ff]">
-                            <Eye className="mr-1 h-4 w-4" /> 详情
-                          </Button>
-                        </Link>
+                        <div className="flex justify-end gap-1">
+                          <Link href={`/admin/records/${r.id}`}>
+                            <Button variant="ghost" size="sm" className="hover:text-[#1677ff]">
+                              <Eye className="mr-1 h-4 w-4" /> 详情
+                            </Button>
+                          </Link>
+                          {userRole === "admin" && (
+                            <Button variant="ghost" size="sm" onClick={() => deleteRecord(r.id)} className="hover:text-red-600 text-gray-400">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -426,11 +521,149 @@ function RecordsInner() {
                                 <TableCell className="text-gray-600">{fmtDuration(r.duration_sec)}</TableCell>
                                 <TableCell className="text-gray-500">{fmtDate(r.created_at)}</TableCell>
                                 <TableCell className="text-right">
-                                  <Link href={`/admin/records/${r.id}`}>
-                                    <Button variant="ghost" size="sm" className="hover:text-[#1677ff]">
-                                      <Eye className="mr-1 h-4 w-4" /> 详情
-                                    </Button>
-                                  </Link>
+                                  <div className="flex justify-end gap-1">
+                                    <Link href={`/admin/records/${r.id}`}>
+                                      <Button variant="ghost" size="sm" className="hover:text-[#1677ff]">
+                                        <Eye className="mr-1 h-4 w-4" /> 详情
+                                      </Button>
+                                    </Link>
+                                    {userRole === "admin" && (
+                                      <Button variant="ghost" size="sm" onClick={() => deleteRecord(r.id)} className="hover:text-red-600 text-gray-400">
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    )}
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* 按人员分组视图 */}
+      {viewMode === "byPerson" && (
+        <div className="space-y-4">
+          {loading ? (
+            <div className="space-y-4">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="brand-card rounded-xl p-4 space-y-3">
+                  <div className="skeleton h-12 rounded-lg" />
+                  <div className="skeleton h-10 rounded" />
+                </div>
+              ))}
+            </div>
+          ) : items.length === 0 ? (
+            <Card className="brand-card border-0">
+              <CardContent className="py-16 flex flex-col items-center">
+                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center mb-3">
+                  <Users className="w-7 h-7 text-[#1677ff]" />
+                </div>
+                <p className="text-[15px] font-medium text-gray-800">暂无考试记录</p>
+                <p className="text-xs text-gray-400 mt-1">工人完成考试后记录会在这里展示</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <>
+              <div className="flex justify-end gap-2">
+                <Button variant="ghost" size="sm" onClick={() => setExpandedPersons(new Set(personGroupedData().map(g => `${g.person.name}_${g.person.phone}`)))} className="text-gray-500 hover:text-[#1677ff]">
+                  <ChevronDown className="w-4 h-4 mr-1" /> 全部展开
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setExpandedPersons(new Set())} className="text-gray-500 hover:text-[#1677ff]">
+                  <ChevronRight className="w-4 h-4 mr-1" /> 全部折叠
+                </Button>
+              </div>
+
+              {personGroupedData().map((group) => {
+                const personKey = `${group.person.name}_${group.person.phone}`;
+                const isExpanded = expandedPersons.has(personKey);
+                return (
+                  <div key={personKey} className="brand-card rounded-xl overflow-hidden">
+                    <button
+                      onClick={() => togglePerson(personKey)}
+                      className="w-full flex items-center justify-between p-4 hover:bg-gray-50/50 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-transform ${
+                          isExpanded ? "bg-[#1677ff]/10 text-[#1677ff]" : "bg-gray-100 text-gray-500"
+                        }`}>
+                          {isExpanded ? <ChevronDown className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
+                        </div>
+                        <div className="text-left">
+                          <h3 className="font-semibold text-gray-900">{group.person.name}</h3>
+                          <div className="flex items-center gap-4 mt-1 text-xs text-gray-500">
+                            <span>考试 <span className="font-medium text-gray-700">{group.stats.total}</span> 次</span>
+                            <span>最高分 <span className="font-medium text-gray-700">{group.stats.bestScore}</span></span>
+                            <span>
+                              最新成绩{" "}
+                              <span className={`font-medium ${
+                                group.stats.latestPass === true ? "text-emerald-600" : 
+                                group.stats.latestPass === false ? "text-red-600" : "text-gray-500"
+                              }`}>
+                                {group.stats.latestScore ?? "未完成"}
+                              </span>
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge className="bg-blue-50 text-blue-700 border border-blue-200">
+                          {group.person.phone || "无手机号"}
+                        </Badge>
+                      </div>
+                    </button>
+                    
+                    {isExpanded && (
+                      <div className="border-t border-gray-100">
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="bg-gray-50/60">
+                              <TableHead>试卷</TableHead>
+                              <TableHead className="text-right">得分</TableHead>
+                              <TableHead>结果</TableHead>
+                              <TableHead>次数</TableHead>
+                              <TableHead>用时</TableHead>
+                              <TableHead>考试时间</TableHead>
+                              <TableHead className="text-right">操作</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {group.records.map((r, i) => (
+                              <TableRow key={r.id} className={i % 2 === 1 ? "bg-gray-50/30" : ""}>
+                                <TableCell className="text-gray-600">{r.exam_title || "-"}</TableCell>
+                                <TableCell className="text-right tabular-nums font-semibold text-gray-900">{r.score ?? "-"}</TableCell>
+                                <TableCell>
+                                  {r.is_pass === null ? (
+                                    <Badge className="bg-orange-50 text-orange-700 border border-orange-200">未完成</Badge>
+                                  ) : r.is_pass ? (
+                                    <Badge className="bg-emerald-50 text-emerald-700 border border-emerald-200">通过</Badge>
+                                  ) : (
+                                    <Badge className="bg-red-50 text-red-700 border border-red-200">未通过</Badge>
+                                  )}
+                                </TableCell>
+                                <TableCell className="text-gray-600">第 {r.attempt_no} 次</TableCell>
+                                <TableCell className="text-gray-600">{fmtDuration(r.duration_sec)}</TableCell>
+                                <TableCell className="text-gray-500">{fmtDate(r.created_at)}</TableCell>
+                                <TableCell className="text-right">
+                                  <div className="flex justify-end gap-1">
+                                    <Link href={`/admin/records/${r.id}`}>
+                                      <Button variant="ghost" size="sm" className="hover:text-[#1677ff]">
+                                        <Eye className="mr-1 h-4 w-4" /> 详情
+                                      </Button>
+                                    </Link>
+                                    {userRole === "admin" && (
+                                      <Button variant="ghost" size="sm" onClick={() => deleteRecord(r.id)} className="hover:text-red-600 text-gray-400">
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    )}
+                                  </div>
                                 </TableCell>
                               </TableRow>
                             ))}

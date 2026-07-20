@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { getSessionFromReq } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
@@ -40,6 +41,28 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
     const client = db();
     const { error } = await client.from("exam_records").update(update).eq("id", id);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
+}
+
+// DELETE /api/records/:id  删除考试记录（仅admin）
+export async function DELETE(req: NextRequest, { params }: Params) {
+  try {
+    const session = await getSessionFromReq(req);
+    if (!session) {
+      return NextResponse.json({ error: "未登录" }, { status: 401 });
+    }
+    if (session.role !== "admin") {
+      return NextResponse.json({ error: "无权限，仅管理员可删除" }, { status: 403 });
+    }
+
+    const { id } = await params;
+    const client = db();
+    const { error } = await client.from("exam_records").delete().eq("id", id);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ success: true });
   } catch (err) {

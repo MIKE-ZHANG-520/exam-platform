@@ -4,15 +4,15 @@ import { db } from "@/lib/db";
 export const runtime = "nodejs";
 
 // GET /api/records  管理端记录列表 + 筛选
-// query: name, team, exam_id, is_pass, start, end
+// query: name, team, exam_id, is_pass, start_date, end_date
 export async function GET(req: NextRequest) {
   const url = req.nextUrl;
   const name = url.searchParams.get("name");
   const team = url.searchParams.get("team");
   const examId = url.searchParams.get("exam_id");
   const isPass = url.searchParams.get("is_pass");
-  const start = url.searchParams.get("start");
-  const end = url.searchParams.get("end");
+  const startDate = url.searchParams.get("start_date") || url.searchParams.get("start");
+  const endDate = url.searchParams.get("end_date") || url.searchParams.get("end");
 
   const client = db();
   let query = client
@@ -26,8 +26,8 @@ export async function GET(req: NextRequest) {
   if (examId) query = query.eq("exam_id", examId);
   if (isPass === "true") query = query.eq("is_pass", true);
   if (isPass === "false") query = query.eq("is_pass", false);
-  if (start) query = query.gte("created_at", start);
-  if (end) query = query.lte("created_at", end);
+  if (startDate) query = query.gte("created_at", startDate);
+  if (endDate) query = query.lte("created_at", endDate + "T23:59:59");
 
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
