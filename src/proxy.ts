@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from "next/server"
 import { jwtVerify } from "jose"
+import { createHash } from "crypto"
 
-const SECRET = process.env.SESSION_SECRET || "smart-training-platform-default-secret-change-me-2026"
-const key = new TextEncoder().encode(SECRET)
+// 与 auth.ts 保持相同的密钥计算逻辑
+function getSecret(): string {
+  const envSecret = process.env.SESSION_SECRET
+  if (envSecret) return envSecret
+  const source = process.env.COZE_SUPABASE_URL || "smart-training-platform-2026"
+  return createHash("sha256").update(`session-secret::${source}`).digest("hex")
+}
+const key = new TextEncoder().encode(getSecret())
 
 // 公开路径：登录页、登录接口、扫码考试相关、评价、静态资源
 const PUBLIC_API_PATTERNS = [

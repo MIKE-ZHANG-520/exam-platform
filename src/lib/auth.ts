@@ -1,7 +1,8 @@
 import { cookies } from "next/headers"
 import { NextRequest, NextResponse } from "next/server"
 import { SignJWT, jwtVerify } from "jose"
-import { scryptSync, randomBytes, timingSafeEqual } from "crypto"
+import { scryptSync, randomBytes, timingSafeEqual, createHash } from "crypto"
+import { loadEnv } from "@/storage/database/supabase-client"
 
 export type UserRole = "admin" | "user"
 
@@ -15,8 +16,20 @@ export interface SessionUser {
 
 const SESSION_COOKIE = "session"
 const SESSION_TTL_SEC = 60 * 60 * 24 * 7 // 7 天
-const SECRET = process.env.SESSION_SECRET || "smart-training-platform-default-secret-change-me-2026"
-const key = new TextEncoder().encode(SECRET)
+
+// 惰性计算密钥：优先环境变量，否则使用确定性回退值
+let _key: Uint8Array | null = null
+function getKey(): Uint8Array {
+  if (_key) return _key
+  // 尝试加载环境变量（COZE_SUPABASE_URL 由沙箱平台注入，需通过 loadEnv 获取）
+  try { loadEnv() } catch { /* ignore */ }
+  const source = process.env.SESSION_SECRET ||
+    process.env.COZE_SUPABASE_URL ||
+    "smart-training-platform-2026"
+  const secret = createHash("sha256").update(`session-secret::${source}`).digest("hex")
+  _key = new TextEncoder().encode(secret)
+  return _key
+}
 
 export async function signSession(user: SessionUser, remember: boolean): Promise<string> {
 	const exp = Math.floor(Date.now() / 1000) + (remember ? SESSION_TTL_SEC : 60 * 60 * 24)
@@ -30,13 +43,13 @@ export async function signSession(user: SessionUser, remember: boolean): Promise
 		.setProtectedHeader({ alg: "HS256" })
 		.setExpirationTime(exp)
 		.setIssuedAt()
-		.sign(key)
+		.sign(getKey())
 	return token
 }
 
 export async function verifySession(token: string): Promise<SessionUser | null> {
 	try {
-		const { payload } = await jwtVerify(token, key)
+		const { payload } = await jwtVerify(token, getKey())
 		return {
 			id: String(payload.uid),
 			username: String(payload.username),
