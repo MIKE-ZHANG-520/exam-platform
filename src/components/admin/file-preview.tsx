@@ -1,8 +1,8 @@
 "use client"
 
 import type { JSX } from "react"
-import { useCallback, useEffect, useRef, useState } from "react"
-import { Loader2, Download, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, FileText, Table, AlertCircle } from "lucide-react"
+import { useCallback, useEffect, useState } from "react"
+import { Loader2, Download, FileText, Table, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { apiGet } from "@/lib/http"
 
@@ -17,152 +17,34 @@ interface FilePreviewProps {
   materialId: string
 }
 
-// ─── PDF 预览 ───
+// ─── PDF 预览（使用浏览器内置 PDF 查看器）───
 function PdfPreview({ fileUrl }: { fileUrl: string }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const [pageCount, setPageCount] = useState(0)
-  const [currentPage, setCurrentPage] = useState(1)
-  const [scale, setScale] = useState(1.2)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const pdfDocRef = useRef<any>(null)
-
-  useEffect(() => {
-    let cancelled = false
-
-    async function loadPdf() {
-      try {
-        setLoading(true)
-        setError(null)
-
-        const pdfjsLib = await import("pdfjs-dist")
-        // 使用 CDN worker
-        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`
-
-        const loadingTask = pdfjsLib.getDocument({
-          url: fileUrl,
-          cMapPacked: true,
-          cMapUrl: "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/cmaps/",
-        })
-        const doc = await loadingTask.promise
-        if (cancelled) return
-        pdfDocRef.current = doc
-        setPageCount(doc.numPages)
-        setCurrentPage(1)
-      } catch (err) {
-        if (!cancelled) {
-          console.error("[PdfPreview] load error:", err)
-          setError("PDF 加载失败，可能文件已过期或格式不支持")
-          setLoading(false)
-        }
-      }
-    }
-
-    loadPdf()
-    return () => { cancelled = true }
-  }, [fileUrl])
-
-  useEffect(() => {
-    if (!pdfDocRef.current || !canvasRef.current) return
-    let cancelled = false
-
-    async function renderPage() {
-      try {
-        const doc = pdfDocRef.current
-        const page = await doc.getPage(currentPage)
-        if (cancelled) return
-
-        const viewport = page.getViewport({ scale })
-        const canvas = canvasRef.current!
-        const context = canvas.getContext("2d")!
-        const dpr = window.devicePixelRatio || 1
-
-        canvas.width = viewport.width * dpr
-        canvas.height = viewport.height * dpr
-        canvas.style.width = `${viewport.width}px`
-        canvas.style.height = `${viewport.height}px`
-
-        context.setTransform(dpr, 0, 0, dpr, 0, 0)
-        await page.render({ canvasContext: context, viewport }).promise
-        if (!cancelled) setLoading(false)
-      } catch (err) {
-        if (!cancelled) {
-          console.error("[PdfPreview] render error:", err)
-          setError("页面渲染失败")
-          setLoading(false)
-        }
-      }
-    }
-
-    renderPage()
-    return () => { cancelled = true }
-  }, [currentPage, scale])
-
-  if (error) {
-    return (
-      <div className="flex items-center justify-center gap-2 py-12 text-red-500">
-        <AlertCircle className="h-5 w-5" />
-        <span>{error}</span>
-      </div>
-    )
-  }
 
   return (
-    <div className="space-y-3">
-      {/* 工具栏 */}
-      <div className="flex items-center justify-between rounded-lg bg-slate-50 border border-slate-200 px-3 py-2">
-        <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 w-8 p-0"
-            disabled={currentPage <= 1}
-            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <span className="text-sm text-slate-600 min-w-[80px] text-center tabular-nums">
-            {currentPage} / {pageCount}
-          </span>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 w-8 p-0"
-            disabled={currentPage >= pageCount}
-            onClick={() => setCurrentPage((p) => Math.min(pageCount, p + 1))}
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
+    <div className="rounded-lg border border-slate-200 overflow-hidden" style={{ height: "70vh" }}>
+      <iframe
+        src={fileUrl}
+        className="w-full h-full"
+        title="PDF Preview"
+        onLoad={() => setLoading(false)}
+        onError={() => {
+          setError("PDF 加载失败")
+          setLoading(false)
+        }}
+      />
+      {loading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-white/80">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
         </div>
-        <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 w-8 p-0"
-            disabled={scale <= 0.5}
-            onClick={() => setScale((s) => Math.max(0.5, +(s - 0.2).toFixed(1)))}
-          >
-            <ZoomOut className="h-4 w-4" />
-          </Button>
-          <span className="text-xs text-slate-500 min-w-[40px] text-center tabular-nums">
-            {Math.round(scale * 100)}%
-          </span>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 w-8 p-0"
-            disabled={scale >= 3}
-            onClick={() => setScale((s) => Math.min(3, +(s + 0.2).toFixed(1)))}
-          >
-            <ZoomIn className="h-4 w-4" />
-          </Button>
+      )}
+      {error && (
+        <div className="flex items-center justify-center gap-2 py-12 text-red-500">
+          <AlertCircle className="h-5 w-5" />
+          <span>{error}</span>
         </div>
-      </div>
-      {/* 画布 */}
-      <div className="flex justify-center overflow-auto rounded-lg border border-slate-200 bg-slate-100 p-4" style={{ maxHeight: "70vh" }}>
-        {loading && <Loader2 className="h-8 w-8 animate-spin text-blue-500 my-20" />}
-        <canvas ref={canvasRef} className="shadow-md bg-white" style={{ display: loading ? "none" : "block" }} />
-      </div>
+      )}
     </div>
   )
 }
