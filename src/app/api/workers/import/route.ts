@@ -62,6 +62,23 @@ export async function POST(request: NextRequest) {
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
   if (!sheet) return NextResponse.json({ error: "工作簿为空" }, { status: 400 });
 
+  // 处理合并单元格：将合并区域的值填充到所有单元格
+  const merges = sheet['!merges'] || [];
+  for (const merge of merges) {
+    const startCell = XLSX.utils.encode_cell({ r: merge.s.r, c: merge.s.c });
+    const startValue = sheet[startCell]?.v;
+    if (startValue !== undefined) {
+      for (let r = merge.s.r; r <= merge.e.r; r++) {
+        for (let c = merge.s.c; c <= merge.e.c; c++) {
+          const cell = XLSX.utils.encode_cell({ r, c });
+          if (!sheet[cell]) {
+            sheet[cell] = { t: 's', v: String(startValue) };
+          }
+        }
+      }
+    }
+  }
+
   // 读取所有行（包括空行，保持原始行号）
   const rawRows: unknown[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, blankrows: true, defval: "" }) as unknown[][];
 
