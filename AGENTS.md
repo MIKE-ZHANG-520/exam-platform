@@ -13,6 +13,9 @@
 - shadcn/ui (Radix) + Tailwind CSS 4
 - Supabase（Postgres + 对象存储 + LLM + FetchClient）
 - `qrcode` 生成二维码、`recharts` 图表
+- `pdfjs-dist` 解析 PDF（worker 文件在 `public/pdf.worker.mjs`）
+- `xlsx` (SheetJS) 解析 XLSX
+- `mammoth` 解析 DOCX
 
 ## 目录结构
 
@@ -147,3 +150,11 @@ src/
 ### v2.3.2 (2026-07-20)
 - **修复**：处理 Excel 合并单元格导致的表头识别失败
 - **优化**：XLSX 读取时自动填充合并单元格的值
+
+### v2.3.3 (2026-07-20)
+- **修复**：文件上传后存储 key 不匹配（uploadFile 返回带哈希后缀的 key，需使用返回值）
+- **修复**：PDF 解析改用 pdfjs-dist（替代 pdf2json），worker 文件放在 public 目录
+- **修复**：XLSX 解析恢复（使用 SheetJS/xlsx 库）
+- **修复**：DOCX 解析恢复（使用 mammoth 库）
+- **修复**：auth.ts 与 proxy.ts 密钥前缀不一致导致会话验证失败
+- **优化**：文件上传增加重试逻辑（最多 3 次，指数退避）+ 阻塞式存储验证

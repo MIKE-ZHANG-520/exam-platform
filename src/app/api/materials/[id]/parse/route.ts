@@ -92,12 +92,30 @@ export async function POST(req: NextRequest, { params }: Params) {
       // 根据文件类型解析内容
       const fileType = material.file_type?.toLowerCase();
       if (fileType === "pdf") {
-        // PDF文件使用pdf-parse解析
+        // PDF文件使用pdfjs-dist解析
         const arrayBuffer = await fileResp.arrayBuffer();
         try {
-          const pdfParse = require("pdf-parse");
-          const result = await pdfParse(Buffer.from(arrayBuffer));
-          text = result.text;
+          const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
+          const uint8 = new Uint8Array(arrayBuffer);
+          // 使用file://协议指向worker文件
+          const path = require("path");
+          const workerPath = path.join(process.cwd(), "public", "pdf.worker.mjs");
+          pdfjsLib.GlobalWorkerOptions.workerSrc = `file://${workerPath}`;
+          
+          const loadingTask = pdfjsLib.getDocument({ data: uint8 });
+          const pdfDoc = await loadingTask.promise;
+          
+          const textParts: string[] = [];
+          for (let i = 1; i <= pdfDoc.numPages; i++) {
+            const page = await pdfDoc.getPage(i);
+            const textContent = await page.getTextContent();
+            const pageText = textContent.items
+              .map((item: unknown) => (item as { str?: string }).str || "")
+              .join(" ");
+            textParts.push(pageText);
+          }
+          text = textParts.join("\n").trim();
+          console.log(`[Parse] PDF parsed: ${pdfDoc.numPages} pages, ${text.length} chars`);
         } catch (pdfErr) {
           const errMsg = pdfErr instanceof Error ? pdfErr.message : String(pdfErr);
           throw new Error(`PDF解析失败：${errMsg}`);

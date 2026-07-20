@@ -47,6 +47,8 @@ const eslintConfig = defineConfig([
     'dist/**',
     // Script files (CommonJS):
     'scripts/**/*.js',
+    // PDF worker (third-party bundled file):
+    'public/pdf.worker.mjs',
   ]),
 ]);
 
