@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
-import { makeLLM, extractJson } from "@/lib/ai";
 import {
   encryptSensitive,
   maskIdCard,
@@ -13,7 +12,7 @@ import {
 } from "@/lib/crypto";
 
 export const runtime = "nodejs";
-export const maxDuration = 120; // AI 分析可能需要更长时间
+export const maxDuration = 30;
 
 interface ImportRowResult {
   row: number;
@@ -31,7 +30,90 @@ interface WorkerData {
   hire_date?: string;
 }
 
-// POST /api/workers/import (multipart/form-data: file, project_id, dry_run)
+// 列名映射：支持中英文、常见别名
+const COLUMN_ALIASES: Record<string, string[]> = {
+  name: ["姓名", "名字", "工人姓名", "人员姓名", "name", "worker name", "employee name"],
+  id_card: ["身份证号", "身份证", "证件号", "身份证号", "id card", "id number", "identity"],
+  phone: ["手机号", "电话", "联系电话", "手机号码", "phone", "mobile", "tel"],
+  gender: ["性别", "gender", "sex"],
+  work_type: ["工种", "岗位", "职务", "职位", "work type", "job", "position", "role"],
+  team_name: ["班组", "班组名称", "班组（工种）", "施工班组", "team", "group", "department"],
+  project: ["项目", "项目名称", "工程", "project"],
+  hire_date: ["入职日期", "入职时间", "进场日期", "入职", "hire date", "join date", "start date"],
+  status: ["状态", "人员状态", "status"],
+};
+
+// 根据表头名称匹配字段
+function matchColumn(header: string): string | null {
+  const normalized = header.trim().toLowerCase();
+  for (const [field, aliases] of Object.entries(COLUMN_ALIASES)) {
+    for (const alias of aliases) {
+      if (normalized === alias.toLowerCase()) {
+        return field;
+      }
+    }
+    // 模糊匹配：包含关键词
+    for (const alias of aliases) {
+      if (normalized.includes(alias.toLowerCase()) || alias.toLowerCase().includes(normalized)) {
+        return field;
+      }
+    }
+  }
+  return null;
+}
+
+// 查找表头行（前10行中找）
+function findHeaderRow(rows: unknown[][]): { headerIdx: number; colMap: Record<number, string> } | null {
+  for (let i = 0; i < Math.min(10, rows.length); i++) {
+    const row = rows[i];
+    if (!row || row.length === 0) continue;
+    
+    const colMap: Record<number, string> = {};
+    let matchCount = 0;
+    
+    for (let c = 0; c < row.length; c++) {
+      const cell = String(row[c] ?? "").trim();
+      if (!cell) continue;
+      
+      const field = matchColumn(cell);
+      if (field) {
+        colMap[c] = field;
+        matchCount++;
+      }
+    }
+    
+    // 至少匹配3个关键字段才认为是表头
+    const firstKey = Object.keys(colMap)[0];
+    if (matchCount >= 3 && (firstKey ? colMap[Number(firstKey)] === "name" : false || Object.values(colMap).includes("name"))) {
+      return { headerIdx: i, colMap };
+    }
+  }
+  return null;
+}
+
+// 从行数据提取工人信息
+function extractWorker(row: unknown[], colMap: Record<number, string>): WorkerData | null {
+  const data: Record<string, string> = {};
+  
+  for (const [colIdx, field] of Object.entries(colMap)) {
+    const value = String(row[Number(colIdx)] ?? "").trim();
+    data[field] = value;
+  }
+  
+  // 必须有姓名和身份证号
+  if (!data.name || !data.id_card) return null;
+  
+  return {
+    name: data.name,
+    id_card: data.id_card,
+    phone: data.phone || "",
+    team_name: data.team_name || "",
+    work_type: data.work_type || "",
+    hire_date: data.hire_date || "",
+  };
+}
+
+// POST /api/workers/import (multipart/form-data: file, project_id, team_id)
 export async function POST(request: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "未登录" }, { status: 401 });
@@ -45,7 +127,6 @@ export async function POST(request: NextRequest) {
   const file = formData.get("file") as File | null;
   const projectId = ((formData.get("project_id") as string | null) || "").trim();
   const teamIdInput = ((formData.get("team_id") as string | null) || "").trim();
-  const dryRun = String(formData.get("dry_run") || "0") === "1";
 
   if (!file) return NextResponse.json({ error: "缺少文件" }, { status: 400 });
 
@@ -62,8 +143,8 @@ export async function POST(request: NextRequest) {
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
   if (!sheet) return NextResponse.json({ error: "工作簿为空" }, { status: 400 });
 
-  // 处理合并单元格：将合并区域的值填充到所有单元格
-  const merges = sheet['!merges'] || [];
+  // 处理合并单元格
+  const merges = sheet["!merges"] || [];
   for (const merge of merges) {
     const startCell = XLSX.utils.encode_cell({ r: merge.s.r, c: merge.s.c });
     const startValue = sheet[startCell]?.v;
@@ -72,67 +153,45 @@ export async function POST(request: NextRequest) {
         for (let c = merge.s.c; c <= merge.e.c; c++) {
           const cell = XLSX.utils.encode_cell({ r, c });
           if (!sheet[cell]) {
-            sheet[cell] = { t: 's', v: String(startValue) };
+            sheet[cell] = { t: "s", v: String(startValue) };
           }
         }
       }
     }
   }
 
-  // 读取所有行（包括空行，保持原始行号）
-  const rawRows: unknown[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, blankrows: true, defval: "" }) as unknown[][];
+  // 读取所有行
+  const rawRows: unknown[][] = XLSX.utils.sheet_to_json(sheet, {
+    header: 1,
+    blankrows: true,
+    defval: "",
+  }) as unknown[][];
 
   if (rawRows.length < 2) {
     return NextResponse.json({ error: "表格中未找到数据行" }, { status: 400 });
   }
 
-  // ===== 让 AI 直接提取结构化数据 =====
-  // 发送前 20 行给 AI，让 AI 直接提取工人信息
-  const previewRows = rawRows.slice(0, 20).map((row, idx) => ({
-    index: idx,
-    cells: (row as unknown[]).map((c) => String(c ?? "")),
-  }));
-
-  let workersData: WorkerData[] = [];
-
-  try {
-    const prompt = `你是一位专业的数据提取专家。请从下面的表格数据中提取所有工人信息。
-
-表格数据（前 20 行）：
-${previewRows.map((r) => `第${r.index}行: ${r.cells.join(" | ")}`).join("\n")}
-
-请提取所有工人的信息，返回 JSON 数组格式（不要包含 markdown 代码块标记）：
-[
-  {
-    "name": "姓名",
-    "id_card": "身份证号",
-    "phone": "电话（没有则填空字符串）",
-    "team_name": "班组名称（没有则填空字符串）",
-    "work_type": "工种（没有则填空字符串）",
-    "hire_date": "入职/进场日期（没有则填空字符串）"
+  // 查找表头行
+  const headerResult = findHeaderRow(rawRows);
+  if (!headerResult) {
+    return NextResponse.json({
+      error: "无法识别表头，请确保表格包含「姓名」「身份证号」等列名",
+    }, { status: 400 });
   }
-]
 
-注意事项：
-1. 表头行不要提取（只提取数据行）
-2. 身份证号必须是 18 位数字（最后一位可能是 X）
-3. 如果某列找不到，填空字符串
-4. 必须返回合法的 JSON 数组`;
+  const { headerIdx, colMap } = headerResult;
+  const dataRows = rawRows.slice(headerIdx + 1);
 
-    const llm = makeLLM();
-    const response = await llm.invoke([{ role: "user", content: prompt }], { temperature: 0.1 });
-    const text = response.content;
-    const aiResult = extractJson<WorkerData[]>(text);
+  // 提取工人数据
+  const workersData: WorkerData[] = [];
+  for (const row of dataRows) {
+    if (!row || row.every((c) => !c || String(c).trim() === "")) continue;
+    const worker = extractWorker(row, colMap);
+    if (worker) workersData.push(worker);
+  }
 
-    if (!Array.isArray(aiResult) || aiResult.length === 0) {
-      return NextResponse.json({ error: "AI 未能提取到有效的工人数据" }, { status: 400 });
-    }
-
-    workersData = aiResult;
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
-    console.error("AI 提取失败:", msg);
-    return NextResponse.json({ error: `AI 提取失败：${msg}` }, { status: 400 });
+  if (workersData.length === 0) {
+    return NextResponse.json({ error: "未能从表格中提取到有效的工人数据" }, { status: 400 });
   }
 
   const client = db();
@@ -150,7 +209,7 @@ ${previewRows.map((r) => `第${r.index}行: ${r.cells.join(" | ")}`).join("\n")}
 
   for (let i = 0; i < workersData.length; i++) {
     const worker = workersData[i];
-    const rowNo = i + 2; // Excel 行号（从第 2 行开始）
+    const rowNo = headerIdx + 2 + i; // Excel 行号
 
     const name = (worker.name || "").trim();
     const idCard = (worker.id_card || "").trim().toUpperCase();
@@ -199,7 +258,7 @@ ${previewRows.map((r) => `第${r.index}行: ${r.cells.join(" | ")}`).join("\n")}
   // 数据库层面去重
   let insertedCount = 0;
   let dbDuplicateCount = 0;
-  if (!dryRun && validPayloads.length > 0) {
+  if (validPayloads.length > 0) {
     const hashes = validPayloads.map((p) => String(p.id_card_hash));
     const { data: existRows } = await client
       .from("workers")
@@ -232,15 +291,16 @@ ${previewRows.map((r) => `第${r.index}行: ${r.cells.join(" | ")}`).join("\n")}
     }
   }
 
-  const summary = {
-    total: workersData.length,
-    success: dryRun ? results.filter((r) => r.status === "success").length : insertedCount,
-    duplicate: results.filter((r) => r.status === "duplicate").length,
-    invalid: results.filter((r) => r.status === "invalid").length,
-    error: results.filter((r) => r.status === "error").length,
-    db_duplicate: dbDuplicateCount,
-    dry_run: dryRun,
-  };
+  // 返回前端期望的格式
+  const errors = results
+    .filter((r) => r.status !== "success")
+    .map((r) => ({ row: r.row, reason: r.reason || "" }));
 
-  return NextResponse.json({ summary, results });
+  return NextResponse.json({
+    total: workersData.length,
+    success: insertedCount,
+    updated: 0,
+    skipped: results.filter((r) => r.status !== "success").length,
+    errors,
+  });
 }
