@@ -1,15 +1,23 @@
 import { NextRequest, NextResponse } from "next/server"
 import { jwtVerify } from "jose"
 import { createHash } from "crypto"
+import { loadEnv } from "@/storage/database/supabase-client"
 
 // 与 auth.ts 保持相同的密钥计算逻辑
 function getSecret(): string {
   const envSecret = process.env.SESSION_SECRET
   if (envSecret) return envSecret
+  // 尝试加载环境变量（COZE_SUPABASE_URL 由沙箱平台注入，需通过 loadEnv 获取）
+  try { loadEnv() } catch { /* ignore */ }
   const source = process.env.COZE_SUPABASE_URL || "smart-training-platform-2026"
   return createHash("sha256").update(`session-secret::${source}`).digest("hex")
 }
-const key = new TextEncoder().encode(getSecret())
+let _key: Uint8Array | null = null
+function getKey(): Uint8Array {
+  if (_key) return _key
+  _key = new TextEncoder().encode(getSecret())
+  return _key
+}
 
 // 公开路径：登录页、登录接口、扫码考试相关、评价、静态资源
 const PUBLIC_API_PATTERNS = [
@@ -24,7 +32,7 @@ const PUBLIC_API_PATTERNS = [
 
 async function verify(token: string) {
 	try {
-		const { payload } = await jwtVerify(token, key)
+		const { payload } = await jwtVerify(token, getKey())
 		return payload
 	} catch {
 		return null

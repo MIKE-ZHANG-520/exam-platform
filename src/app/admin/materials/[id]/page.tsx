@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
 import { apiGet, apiPatch, apiPost, apiDelete } from "@/lib/http"
 import { toast } from "sonner"
-import { ArrowLeft, Loader2, Sparkles, Pencil, Save, CheckCircle2, XCircle, ListTree, ShieldAlert } from "lucide-react"
+import { ArrowLeft, Loader2, Sparkles, Pencil, Save, CheckCircle2, XCircle, ListTree, ShieldAlert, FileText } from "lucide-react"
 import { OutlineRenderer } from "@/components/admin/outline-renderer"
 
 // —— 生成要求预设模板（题库/提纲共用） ——
@@ -126,6 +126,7 @@ interface Material {
 	file_name: string
 	file_type: string
 	status: string
+	error_message?: string | null
 	metadata?: MaterialMetadata | null
 }
 
@@ -140,11 +141,13 @@ function OutlineCard({
 	audience,
 	onRefresh,
 	materialId,
+	isParsed,
 }: {
 	outline: Outline | undefined
 	audience: "worker" | "trainer"
 	onRefresh: () => void
 	materialId: string
+	isParsed: boolean
 }) {
 	const [editing, setEditing] = useState(false)
 	const [draft, setDraft] = useState(outline?.content_md || "")
@@ -303,7 +306,7 @@ function OutlineCard({
 					</div>
 				</details>
 				<div className="mt-4 text-center">
-					<Button className="bg-[#1677ff] hover:bg-[#0958d9]" onClick={generate} disabled={generating}>
+					<Button className="bg-[#1677ff] hover:bg-[#0958d9]" onClick={generate} disabled={generating || !isParsed} title={!isParsed ? "请先解析文件内容" : undefined}>
 						{generating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
 						AI 生成{label}提纲
 					</Button>
@@ -597,6 +600,8 @@ export default function MaterialDetailPage() {
 
 	const worker = data.outlines.find((o) => o.audience === "worker")
 	const trainer = data.outlines.find((o) => o.audience === "trainer")
+	const isParsed = data.material.status === "parsed" || data.material.status === "ready" || data.material.status === "generating"
+	const isParsing = data.material.status === "parsing"
 
 	return (
 		<div className="space-y-6">
@@ -606,12 +611,68 @@ export default function MaterialDetailPage() {
 				</Link>
 			</div>
 
+			{/* 解析状态提示 */}
+			{!isParsed && !isParsing && (
+				<div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+					<div className="flex items-start gap-3">
+						<div className="rounded-lg bg-amber-100 p-2">
+							<ShieldAlert className="h-5 w-5 text-amber-600" />
+						</div>
+						<div className="flex-1">
+							<h3 className="text-sm font-medium text-amber-800">材料尚未解析</h3>
+							<p className="text-xs text-amber-600 mt-1">
+								{data.material.status === "failed" 
+									? `解析失败：${data.material.error_message || "未知错误"}，请删除后重新上传`
+									: "请先解析文件内容，才能生成提纲和题库"}
+							</p>
+							{data.material.status !== "failed" && (
+								<Button
+									size="sm"
+									className="mt-3 bg-amber-600 hover:bg-amber-700 text-white"
+									onClick={async () => {
+										try {
+											toast.info("正在解析文件，请稍候...")
+											await apiPost(`/api/materials/${id}/parse`, {})
+											toast.success("解析完成")
+											load()
+										} catch (e) {
+											toast.error((e as Error).message)
+										}
+									}}
+								>
+									<FileText className="w-3.5 h-3.5 mr-1.5" />
+									立即解析
+								</Button>
+							)}
+						</div>
+					</div>
+				</div>
+			)}
+			{isParsing && (
+				<div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+					<div className="flex items-center gap-3">
+						<Loader2 className="h-5 w-5 text-blue-600 animate-spin" />
+						<div>
+							<h3 className="text-sm font-medium text-blue-800">正在解析文件内容...</h3>
+							<p className="text-xs text-blue-600 mt-0.5">解析完成后即可生成提纲和题库</p>
+						</div>
+					</div>
+				</div>
+			)}
+
 			<div className="brand-card rounded-xl p-6 flex items-start justify-between gap-6 flex-wrap">
 				<div>
 					<div className="flex items-center gap-2">
 						<h1 className="text-[22px] font-semibold text-gray-900">{data.material.title}</h1>
 						<Badge variant="outline" className="uppercase">
 							{data.material.file_type}
+						</Badge>
+						<Badge className={
+							isParsed ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+							isParsing ? "bg-amber-50 text-amber-700 border-amber-200" :
+							"bg-gray-50 text-gray-600 border-gray-200"
+						} variant="outline">
+							{isParsed ? "已解析" : isParsing ? "解析中" : "未解析"}
 						</Badge>
 					</div>
 					<div className="text-sm text-gray-500 mt-1">{data.material.file_name}</div>
@@ -620,7 +681,8 @@ export default function MaterialDetailPage() {
 					<Button
 						variant="outline"
 						onClick={() => generateBank("easy", bankNote)}
-						disabled={genBank !== null}
+						disabled={genBank !== null || !isParsed}
+						title={!isParsed ? "请先解析文件内容" : undefined}
 					>
 						{genBank === "easy" ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Sparkles className="w-4 h-4 mr-1.5" />}
 						{genBank === "easy"
@@ -630,7 +692,8 @@ export default function MaterialDetailPage() {
 					<Button
 						variant="outline"
 						onClick={() => generateBank("medium", bankNote)}
-						disabled={genBank !== null}
+						disabled={genBank !== null || !isParsed}
+						title={!isParsed ? "请先解析文件内容" : undefined}
 					>
 						{genBank === "medium" ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Sparkles className="w-4 h-4 mr-1.5" />}
 						{genBank === "medium"
@@ -767,10 +830,10 @@ export default function MaterialDetailPage() {
 					<TabsTrigger value="trainer">🎓 培训师版</TabsTrigger>
 				</TabsList>
 				<TabsContent value="worker">
-					<OutlineCard outline={worker} audience="worker" onRefresh={load} materialId={id} />
+					<OutlineCard outline={worker} audience="worker" onRefresh={load} materialId={id} isParsed={isParsed} />
 				</TabsContent>
 				<TabsContent value="trainer">
-					<OutlineCard outline={trainer} audience="trainer" onRefresh={load} materialId={id} />
+					<OutlineCard outline={trainer} audience="trainer" onRefresh={load} materialId={id} isParsed={isParsed} />
 				</TabsContent>
 			</Tabs>
 		</div>
