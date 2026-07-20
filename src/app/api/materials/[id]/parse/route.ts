@@ -3,6 +3,8 @@ import { db } from "@/lib/db";
 import { makeLLM, extractJson, DEFAULT_MODEL, SAFETY_EXPERT_ROLE } from "@/lib/ai";
 import { presignUrl } from "@/lib/storage";
 import { requireSession } from "@/lib/auth";
+import * as XLSX from "xlsx";
+import mammoth from "mammoth";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -145,12 +147,25 @@ export async function POST(req: NextRequest, { params }: Params) {
       } else if (fileType === "md" || fileType === "txt") {
         // 文本文件直接读取
         text = await fileResp.text();
-      } else if (fileType === "docx") {
-        // DOCX文件需要特殊处理，暂时使用占位提示
-        throw new Error("DOCX文件解析暂不支持，请转换为PDF或Markdown格式后重新上传");
-      } else if (fileType === "xlsx") {
-        // XLSX文件需要特殊处理，暂时使用占位提示
-        throw new Error("XLSX文件解析暂不支持，请转换为PDF或Markdown格式后重新上传");
+      } else if (fileType === "xlsx" || fileType === "docx") {
+        // XLSX/DOCX文件需要读取为buffer
+        const fileBuffer = Buffer.from(await fileResp.arrayBuffer());
+        if (fileType === "xlsx") {
+          // XLSX文件使用xlsx库解析
+          const workbook = XLSX.read(fileBuffer, { type: "buffer" });
+          const texts: string[] = [];
+          for (const sheetName of workbook.SheetNames) {
+            const sheet = workbook.Sheets[sheetName];
+            if (!sheet) continue;
+            const csv = XLSX.utils.sheet_to_csv(sheet);
+            texts.push(`[${sheetName}]\n${csv}`);
+          }
+          text = texts.join("\n\n");
+        } else {
+          // DOCX文件使用mammoth库解析
+          const result = await mammoth.extractRawText({ buffer: fileBuffer });
+          text = result.value;
+        }
       } else {
         throw new Error(`不支持的文件类型：${fileType}`);
       }
