@@ -92,32 +92,54 @@ export async function POST(req: NextRequest, { params }: Params) {
       // 根据文件类型解析内容
       const fileType = material.file_type?.toLowerCase();
       if (fileType === "pdf") {
-        // PDF文件使用pdfjs-dist解析
+        // PDF文件使用pdf2json解析
         const arrayBuffer = await fileResp.arrayBuffer();
         try {
-          const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
-          const uint8 = new Uint8Array(arrayBuffer);
-          // 使用file://协议指向worker文件
-          const path = require("path");
-          const workerPath = path.join(process.cwd(), "public", "pdf.worker.mjs");
-          pdfjsLib.GlobalWorkerOptions.workerSrc = `file://${workerPath}`;
+          const PDFParser = require("pdf2json");
+          const pdfParser = new PDFParser();
           
-          const loadingTask = pdfjsLib.getDocument({ data: uint8 });
-          const pdfDoc = await loadingTask.promise;
+          await new Promise<void>((resolve, reject) => {
+            pdfParser.on("pdfParser_dataError", reject);
+            pdfParser.on("pdfParser_dataReady", resolve);
+            pdfParser.parseBuffer(Buffer.from(arrayBuffer));
+          });
+          
+          // 提取文本内容
+          const pdfData = pdfParser.data as {
+            Pages?: Array<{
+              Texts?: Array<{
+                R?: Array<{ T?: string }>;
+              }>;
+            }>;
+          };
           
           const textParts: string[] = [];
-          for (let i = 1; i <= pdfDoc.numPages; i++) {
-            const page = await pdfDoc.getPage(i);
-            const textContent = await page.getTextContent();
-            const pageText = textContent.items
-              .map((item: unknown) => (item as { str?: string }).str || "")
-              .join(" ");
-            textParts.push(pageText);
+          if (pdfData?.Pages) {
+            for (const page of pdfData.Pages) {
+              if (page.Texts) {
+                for (const textItem of page.Texts) {
+                  if (textItem.R) {
+                    for (const run of textItem.R) {
+                      if (run.T) {
+                        textParts.push(decodeURIComponent(run.T));
+                      }
+                    }
+                  }
+                }
+              }
+              textParts.push("\n");
+            }
           }
-          text = textParts.join("\n").trim();
-          console.log(`[Parse] PDF parsed: ${pdfDoc.numPages} pages, ${text.length} chars`);
+          text = textParts.join(" ").trim();
         } catch (pdfErr) {
-          const errMsg = pdfErr instanceof Error ? pdfErr.message : String(pdfErr);
+          let errMsg: string;
+          if (pdfErr && typeof pdfErr === "object" && "parserError" in pdfErr) {
+            errMsg = String((pdfErr as { parserError: unknown }).parserError);
+          } else if (pdfErr instanceof Error) {
+            errMsg = pdfErr.message;
+          } else {
+            errMsg = String(pdfErr);
+          }
           throw new Error(`PDF解析失败：${errMsg}`);
         }
       } else if (fileType === "md" || fileType === "txt") {
