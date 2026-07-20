@@ -1,12 +1,8 @@
 import { NextResponse } from "next/server"
 import { getSession } from "@/lib/auth"
-import { createClient } from "@supabase/supabase-js"
+import { db } from "@/lib/db"
 
 export const runtime = "nodejs"
-
-const supabaseUrl = process.env.COZE_SUPABASE_URL!
-const supabaseKey = process.env.COZE_SUPABASE_SERVICE_ROLE_KEY!
-const client = createClient(supabaseUrl, supabaseKey)
 
 interface Question {
   id: string
@@ -179,6 +175,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const session = await getSession()
   if (!session) return NextResponse.json({ error: "未登录" }, { status: 401 })
 
+  const client = db()
   const { id } = await params
   const { searchParams } = new URL(request.url)
   const withAnswer = searchParams.get("answer") !== "false"
