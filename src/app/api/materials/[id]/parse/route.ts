@@ -71,6 +71,7 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   try {
     let text = material.content_text || "";
+    const fileType = material.file_type?.toLowerCase();
     if (!text || text.length < 20) {
       const fileUrl = await presignUrl(material.file_key, 3600);
       
@@ -90,7 +91,6 @@ export async function POST(req: NextRequest, { params }: Params) {
       }
       
       // 根据文件类型解析内容
-      const fileType = material.file_type?.toLowerCase();
       if (fileType === "pdf") {
         // PDF文件使用pdf2json解析
         const arrayBuffer = await fileResp.arrayBuffer();
@@ -112,6 +112,10 @@ export async function POST(req: NextRequest, { params }: Params) {
               }>;
             }>;
           };
+          
+          // 记录页数（供后续统计使用）
+          const pageCount = pdfData?.Pages?.length || 0;
+          (globalThis as Record<string, unknown>).__pdfPageCount = pageCount;
           
           const textParts: string[] = [];
           if (pdfData?.Pages) {
@@ -172,6 +176,30 @@ export async function POST(req: NextRequest, { params }: Params) {
       if (!text) throw new Error("文件解析后内容为空");
     }
 
+    // 解析统计：计算页数、字数、警告
+    const parseStats = {
+      char_count: text.length,
+      page_count: 0,
+      avg_chars_per_page: 0,
+      warnings: [] as string[],
+    };
+
+    // PDF 页数统计（从 pdfData 获取）
+    if (fileType === "pdf" && typeof (globalThis as Record<string, unknown>).__pdfPageCount === "number") {
+      parseStats.page_count = (globalThis as Record<string, unknown>).__pdfPageCount as number;
+      delete (globalThis as Record<string, unknown>).__pdfPageCount;
+    }
+
+    if (parseStats.page_count > 0) {
+      parseStats.avg_chars_per_page = Math.round(text.length / parseStats.page_count);
+      if (parseStats.avg_chars_per_page < 50) {
+        parseStats.warnings.push(`每页平均仅 ${parseStats.avg_chars_per_page} 字，可能是扫描件或图片PDF，文字提取不完整`);
+      }
+    }
+    if (text.length < 200) {
+      parseStats.warnings.push(`解析后仅 ${text.length} 字，内容可能不完整`);
+    }
+
     // AI 抽取元数据
     let metadata: MaterialMetadata | null = null;
     try {
@@ -207,12 +235,13 @@ export async function POST(req: NextRequest, { params }: Params) {
       .update({
         content_text: text,
         metadata: metadata,
+        parse_stats: parseStats,
         status: "parsed",
         updated_at: new Date().toISOString(),
       })
       .eq("id", id);
 
-    return NextResponse.json({ material_id: id, text, metadata, cached: false });
+    return NextResponse.json({ material_id: id, text, metadata, parse_stats: parseStats, cached: false });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await client

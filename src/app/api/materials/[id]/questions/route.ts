@@ -103,26 +103,111 @@ const MEDIUM_BATCH_PROMPT = `${SAFETY_EXPERT_ROLE}
 六、输出严格 JSON 数组（5 个对象），禁止任何多余说明文字。`;
 
 const TOTAL_BATCHES = 10;
+const SEGMENT_SIZE = 5500; // 每段约5500字
 
-function sanitizeQuestions(raw: RawQuestion[]): RawQuestion[] {
-  return raw
-    .filter((q) => {
-      if (!q || typeof q !== "object") return false;
-      if (!["single", "multiple", "judge"].includes(q.type)) return false;
-      if (!q.content || typeof q.content !== "string") return false;
-      if (!Array.isArray(q.options) || q.options.length < 2) return false;
-      if (!Array.isArray(q.answer) || q.answer.length === 0) return false;
-      return true;
-    })
-    .map((q) => ({
+/**
+ * 将长文本按段落/章节切分成多段，每段约 segmentSize 字
+ * 优先在段落边界（换行符）处切分
+ */
+function splitContent(text: string, segmentSize: number): string[] {
+  if (text.length <= segmentSize) return [text];
+  const segments: string[] = [];
+  let start = 0;
+  while (start < text.length) {
+    let end = Math.min(start + segmentSize, text.length);
+    // 尝试在段落边界切分（向前找最后一个换行符）
+    if (end < text.length) {
+      const lastNewline = text.lastIndexOf("\n", end);
+      if (lastNewline > start + segmentSize * 0.5) {
+        end = lastNewline;
+      }
+    }
+    segments.push(text.slice(start, end).trim());
+    start = end;
+  }
+  return segments.filter(s => s.length > 0);
+}
+
+/**
+ * 增强版题目校验：检查答案合法性、选项唯一性、解析完整性
+ */
+function validateQuestion(q: RawQuestion): { valid: boolean; reason?: string } {
+  // 基础结构校验
+  if (!q || typeof q !== "object") return { valid: false, reason: "非对象" };
+  if (!["single", "multiple", "judge"].includes(q.type)) return { valid: false, reason: "type非法" };
+  if (!q.content || typeof q.content !== "string") return { valid: false, reason: "题干为空" };
+  if (!Array.isArray(q.options) || q.options.length < 2) return { valid: false, reason: "选项不足2个" };
+  if (!Array.isArray(q.answer) || q.answer.length === 0) return { valid: false, reason: "无答案" };
+
+  const optionKeys = q.options.map(o => String(o.key).toUpperCase());
+
+  // 选项唯一性校验
+  if (new Set(optionKeys).size !== optionKeys.length) {
+    return { valid: false, reason: "选项key重复" };
+  }
+  // 选项文本唯一性校验（排除判断题）
+  if (q.type !== "judge") {
+    const optTexts = q.options.map(o => String(o.text).trim());
+    if (new Set(optTexts).size !== optTexts.length) {
+      return { valid: false, reason: "选项文本重复" };
+    }
+  }
+
+  // 答案索引合法性校验
+  const answers = q.answer.map(a => String(a).toUpperCase());
+  for (const a of answers) {
+    if (!optionKeys.includes(a)) {
+      return { valid: false, reason: `答案${a}不在选项中` };
+    }
+  }
+
+  // 单选题必须有且仅有1个正确答案
+  if (q.type === "single" && answers.length !== 1) {
+    return { valid: false, reason: "单选题答案数量不是1" };
+  }
+
+  // 多选题至少2个正确答案
+  if (q.type === "multiple" && answers.length < 2) {
+    return { valid: false, reason: "多选题答案少于2个" };
+  }
+
+  // 判断题选项必须是A或B
+  if (q.type === "judge") {
+    for (const a of answers) {
+      if (a !== "A" && a !== "B") {
+        return { valid: false, reason: "判断题答案非法" };
+      }
+    }
+  }
+
+  // 解析必须有内容
+  if (!q.explanation || q.explanation.trim().length < 10) {
+    return { valid: false, reason: "解析缺失或过短" };
+  }
+
+  return { valid: true };
+}
+
+function sanitizeQuestions(raw: RawQuestion[]): { questions: RawQuestion[]; rejected: string[] } {
+  const rejected: string[] = [];
+  const questions: RawQuestion[] = [];
+  for (const q of raw) {
+    const { valid, reason } = validateQuestion(q);
+    if (!valid) {
+      rejected.push(reason || "未知原因");
+      continue;
+    }
+    questions.push({
       type: q.type,
       content: q.content.trim(),
       options: q.options.map((o) => ({ key: String(o.key).toUpperCase(), text: String(o.text) })),
       answer: q.answer.map((a) => String(a).toUpperCase()),
       explanation: q.explanation ? String(q.explanation) : "",
       risk_level: (q.risk_level as RiskLevel) || "medium",
-      tag: q.tag ? String(q.tag) : null,
-    })) as RawQuestion[];
+      tag: q.tag ? String(q.tag) : undefined,
+    });
+  }
+  return { questions, rejected };
 }
 
 function riskLabel(level: RiskLevel): string {
@@ -248,13 +333,18 @@ async function handleStart(
     bankId = body.bankId;
   }
 
-  // 构造 prompt
+  // 构造 prompt：分段读取，每批用不同段落
   const systemPrompt = difficulty === "easy" ? EASY_BATCH_PROMPT : MEDIUM_BATCH_PROMPT;
-  const materialSlice = material.content_text.slice(0, 6000);
+  const segments = splitContent(material.content_text, SEGMENT_SIZE);
+  const segmentIndex = batchIndex % segments.length; // 循环使用段落
+  const materialSlice = segments[segmentIndex];
+  const segmentInfo = segments.length > 1
+    ? `（材料共 ${segments.length} 段，本次使用第 ${segmentIndex + 1} 段，约 ${materialSlice.length} 字）`
+    : "";
   const noteBlock = note
     ? `\n\n【教研特别要求 · 优先级最高】\n${note}\n（以上要求由管理员针对本次生成设定，必须严格执行；与通用规则冲突时以此为准。）`
     : "";
-  const userPrompt = `培训材料《${material.title}》：\n${materialSlice}${noteBlock}\n\n【本次批次】这是第 ${batchIndex + 1} 批（共 ${TOTAL_BATCHES} 批）。\n\n【去重强制规则】\n1. 本批 5 道题必须从材料的【不同章节/不同知识点/不同风险场景】切入，禁止 5 道题都围绕同一个知识点。\n2. 题干场景、人物、情节必须与之前批次完全不同（例如：批次 1 用"电工张三在配电房"，批次 2 就用"焊工李四在脚手架"）。\n3. 如果材料有多个章节，请优先覆盖尚未出题的章节。\n\n严格按 JSON 数组格式输出 5 道题。`;
+  const userPrompt = `培训材料《${material.title}》${segmentInfo}：\n${materialSlice}${noteBlock}\n\n【本次批次】这是第 ${batchIndex + 1} 批（共 ${TOTAL_BATCHES} 批）。\n\n【去重强制规则】\n1. 本批 5 道题必须从材料的【不同章节/不同知识点/不同风险场景】切入，禁止 5 道题都围绕同一个知识点。\n2. 题干场景、人物、情节必须与之前批次完全不同（例如：批次 1 用"电工张三在配电房"，批次 2 就用"焊工李四在脚手架"）。\n3. 如果材料有多个章节，请优先覆盖尚未出题的章节。\n\n严格按 JSON 数组格式输出 5 道题。`;
 
   // 只创建 Bot 对话，立即返回（<3s）
   console.log(`[questions] start batch ${batchIndex + 1}/${TOTAL_BATCHES}`);
@@ -313,10 +403,13 @@ async function handleFinalize(body: {
 
   // 解析题目
   let cleaned: RawQuestion[] = [];
+  let rejectedReasons: string[] = [];
   try {
     const parsed = extractJson<RawQuestion[]>(raw);
     if (Array.isArray(parsed)) {
-      cleaned = sanitizeQuestions(parsed);
+      const result = sanitizeQuestions(parsed);
+      cleaned = result.questions;
+      rejectedReasons = result.rejected;
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -328,8 +421,12 @@ async function handleFinalize(body: {
       generated: 0,
       totalGenerated: await countBank(bankId),
       done: isLast,
-      error: `本批 JSON 解析失败，前 200 字: ${raw.slice(0, 200)}`,
+      error: `本批 JSON 解析失败或被质量校验全部拒绝。拒绝原因: ${rejectedReasons.join("; ") || "未知"}。前 200 字: ${raw.slice(0, 200)}`,
     }, { status: 200 });
+  }
+
+  if (rejectedReasons.length > 0) {
+    console.warn(`[questions] batch ${batchIndex + 1} 质量校验拒绝 ${rejectedReasons.length} 题: ${rejectedReasons.join("; ")}`);
   }
 
   // 获取当前最大 order_no + 已有题目内容（用于去重）
@@ -384,13 +481,15 @@ async function handleFinalize(body: {
     })
     .eq("id", bankId);
 
-  console.log(`[questions] finalize batch ${batchIndex + 1}/${TOTAL_BATCHES} +${rows.length} 题（去重前 ${cleaned.length}）, 累计 ${total} 题`);
+  console.log(`[questions] finalize batch ${batchIndex + 1}/${TOTAL_BATCHES} +${rows.length} 题（去重前 ${cleaned.length}, 校验拒绝 ${rejectedReasons.length}）, 累计 ${total} 题`);
 
   return NextResponse.json({
     generated: rows.length,
     totalGenerated: total,
     done: isLast,
     bankId,
+    rejected: rejectedReasons.length,
+    needSupplement: rows.length < 4, // 不足80%时需要补题
   });
 }
 

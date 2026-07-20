@@ -149,7 +149,40 @@ async function handleStart(
   const noteBlock = note
     ? `\n\n【教研特别要求 · 优先级最高】\n${note}\n（以上要求由管理员针对本次生成设定，必须严格执行；与通用规则冲突时以此为准。）`
     : "";
-  const userPrompt = `培训材料标题：《${material.title}》\n\n以下是原始材料内容（可能截断）：\n${material.content_text.slice(0, 12000)}${noteBlock}\n\n请依据以上内容输出 Markdown 提纲。`;
+
+  // 长文档分段处理：如果内容超过12000字，分段摘要后合并
+  const fullText = material.content_text;
+  let materialContent: string;
+  let segmentNote = "";
+
+  if (fullText.length <= 12000) {
+    materialContent = fullText;
+  } else {
+    // 分段处理：每段约10000字，生成摘要
+    const SEGMENT_SIZE = 10000;
+    const segments: string[] = [];
+    let start = 0;
+    while (start < fullText.length) {
+      let end = Math.min(start + SEGMENT_SIZE, fullText.length);
+      if (end < fullText.length) {
+        const lastNewline = fullText.lastIndexOf("\n", end);
+        if (lastNewline > start + SEGMENT_SIZE * 0.5) end = lastNewline;
+      }
+      segments.push(fullText.slice(start, end).trim());
+      start = end;
+    }
+
+    // 对每段生成简要摘要（取每段的前2000字作为代表）
+    const segmentSummaries = segments.map((seg, i) => {
+      const preview = seg.slice(0, 2000);
+      return `【第${i + 1}段摘要】${preview}${seg.length > 2000 ? "..." : ""}`;
+    });
+
+    materialContent = segmentSummaries.join("\n\n");
+    segmentNote = `\n\n【注意】材料较长（共${fullText.length}字，分${segments.length}段），以上是各段内容摘要。请确保提纲覆盖所有章节，不要遗漏后半部分内容。`;
+  }
+
+  const userPrompt = `培训材料标题：《${material.title}》\n\n以下是原始材料内容${fullText.length > 12000 ? "（分段摘要）" : ""}：\n${materialContent}${segmentNote}${noteBlock}\n\n请依据以上内容输出 Markdown 提纲。`;
 
   console.log(`[outline] start ${audience} for ${materialId} note=${note ? "yes" : "no"}`);
   const handle = await startChat([
