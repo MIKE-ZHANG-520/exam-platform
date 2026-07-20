@@ -1,16 +1,6 @@
 import { NextResponse } from "next/server"
-import { createClient } from "@supabase/supabase-js"
 import { getSession } from "@/lib/auth"
-import {
-  Document,
-  Packer,
-  Paragraph,
-  TextRun,
-  HeadingLevel,
-  AlignmentType,
-  BorderStyle,
-  convertInchesToTwip,
-} from "docx"
+import { createClient } from "@supabase/supabase-js"
 
 export const runtime = "nodejs"
 
@@ -20,46 +10,92 @@ const client = createClient(supabaseUrl, supabaseKey)
 
 interface Question {
   id: string
-  type: "single" | "multiple" | "judge"
+  type: string
   content: string
-  options: Array<{ key: string; text: string }>
+  options: Record<string, string> | null
   answer: string[]
-  explanation?: string | null
+  explanation: string | null
 }
 
-const typeNames: Record<string, string> = {
-  single: "单选题",
-  multiple: "多选题",
-  judge: "判断题",
-}
+// Generate exam document
+async function generateExamDoc(
+  docx: typeof import("docx"),
+  exam: { title: string; config: { duration?: number; pass_score?: number } | null },
+  questions: Question[],
+  withAnswer: boolean
+) {
+  const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, BorderStyle, convertInchesToTwip } = docx
 
-function buildQuestionParagraphs(questions: Question[], withAnswer: boolean): Paragraph[] {
-  const paragraphs: Paragraph[] = []
-  const grouped = {
-    single: questions.filter((q) => q.type === "single"),
-    multiple: questions.filter((q) => q.type === "multiple"),
-    judge: questions.filter((q) => q.type === "judge"),
+  const typeNames: Record<string, string> = {
+    single: "单选题",
+    multiple: "多选题",
+    judge: "判断题",
   }
 
+  // Group questions by type
+  const grouped: Record<string, Question[]> = {}
+  for (const q of questions) {
+    if (!grouped[q.type]) grouped[q.type] = []
+    grouped[q.type].push(q)
+  }
+
+  const children: any[] = []
+
+  // Title
+  children.push(
+    new Paragraph({
+      children: [new TextRun({ text: exam.title, bold: true, size: 40, font: "Microsoft YaHei" })],
+      heading: HeadingLevel.TITLE,
+      alignment: AlignmentType.CENTER,
+    })
+  )
+
+  // Exam info
+  const infoParts: string[] = []
+  if (exam.config?.duration) infoParts.push(`考试时长：${exam.config.duration}分钟`)
+  if (exam.config?.pass_score) infoParts.push(`及格分数：${exam.config.pass_score}分`)
+  infoParts.push(`题目数量：${questions.length}题`)
+
+  children.push(
+    new Paragraph({
+      children: [new TextRun({ text: infoParts.join("  |  "), color: "666666", size: 22 })],
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 200 },
+    })
+  )
+
+  // Candidate info section
+  children.push(
+    new Paragraph({
+      children: [
+        new TextRun({ text: "姓名：__________    手机号：__________    班组：__________" }),
+      ],
+      spacing: { before: 200, after: 400 },
+      border: {
+        bottom: { style: BorderStyle.SINGLE, size: 1, color: "000000" },
+      },
+    })
+  )
+
+  // Questions by type
   let globalIndex = 0
+  for (const [type, typeQuestions] of Object.entries(grouped)) {
+    if (typeQuestions.length === 0) continue
 
-  for (const [type, qs] of Object.entries(grouped)) {
-    if (qs.length === 0) continue
-
-    // Section title
-    paragraphs.push(
+    // Type heading
+    children.push(
       new Paragraph({
-        text: typeNames[type] || type,
-        heading: HeadingLevel.HEADING_2,
+        children: [new TextRun({ text: typeNames[type] || type, bold: true, size: 28, font: "Microsoft YaHei" })],
+        heading: HeadingLevel.HEADING_1,
         spacing: { before: 400, after: 200 },
       })
     )
 
-    for (const q of qs) {
+    for (const q of typeQuestions) {
       globalIndex++
 
       // Question content
-      paragraphs.push(
+      children.push(
         new Paragraph({
           children: [
             new TextRun({ text: `${globalIndex}. `, bold: true }),
@@ -70,30 +106,33 @@ function buildQuestionParagraphs(questions: Question[], withAnswer: boolean): Pa
       )
 
       // Options
-      for (const opt of q.options) {
-        paragraphs.push(
-          new Paragraph({
-            text: `    ${opt.key}. ${opt.text}`,
-            spacing: { after: 40 },
-          })
-        )
+      if (q.options && q.type !== "judge") {
+        const options = q.options
+        for (const [key, value] of Object.entries(options)) {
+          children.push(
+            new Paragraph({
+              children: [new TextRun({ text: `    ${key}. ${value}` })],
+              spacing: { after: 50 },
+            })
+          )
+        }
       }
 
       // Answer and explanation (if withAnswer)
       if (withAnswer) {
         const answerText = q.answer.join(", ")
-        paragraphs.push(
+        children.push(
           new Paragraph({
             children: [
               new TextRun({ text: "【答案】", bold: true, color: "2E7D32" }),
               new TextRun({ text: answerText, color: "2E7D32" }),
             ],
-            spacing: { before: 80, after: 40 },
+            spacing: { before: 100, after: 50 },
           })
         )
 
         if (q.explanation) {
-          paragraphs.push(
+          children.push(
             new Paragraph({
               children: [
                 new TextRun({ text: "【解析】", bold: true, color: "1565C0" }),
@@ -104,8 +143,8 @@ function buildQuestionParagraphs(questions: Question[], withAnswer: boolean): Pa
           )
         }
 
-        // Separator line
-        paragraphs.push(
+        // Separator
+        children.push(
           new Paragraph({
             border: {
               bottom: { style: BorderStyle.SINGLE, size: 1, color: "E0E0E0" },
@@ -114,8 +153,8 @@ function buildQuestionParagraphs(questions: Question[], withAnswer: boolean): Pa
           })
         )
       } else {
-        // Blank space for answer
-        paragraphs.push(
+        // Space for blank version
+        children.push(
           new Paragraph({
             text: "",
             spacing: { after: 150 },
@@ -124,59 +163,6 @@ function buildQuestionParagraphs(questions: Question[], withAnswer: boolean): Pa
       }
     }
   }
-
-  return paragraphs
-}
-
-async function generateDocx(
-  title: string,
-  questions: Question[],
-  withAnswer: boolean,
-  examConfig?: { duration?: number; pass_score?: number }
-): Promise<Buffer> {
-  const children: Paragraph[] = [
-    // Title
-    new Paragraph({
-      text: title,
-      heading: HeadingLevel.HEADING_1,
-      alignment: AlignmentType.CENTER,
-      spacing: { after: 200 },
-    }),
-    // Subtitle
-    new Paragraph({
-      text: withAnswer ? "（含答案版）" : "（空白试卷）",
-      alignment: AlignmentType.CENTER,
-      spacing: { after: 200 },
-    }),
-  ]
-
-  // Exam info (if available)
-  if (examConfig) {
-    const infoParts: string[] = []
-    if (examConfig.duration) infoParts.push(`考试时长：${examConfig.duration}分钟`)
-    if (examConfig.pass_score) infoParts.push(`及格分数：${examConfig.pass_score}分`)
-    if (infoParts.length > 0) {
-      children.push(
-        new Paragraph({
-          children: [new TextRun({ text: infoParts.join("  |  "), color: "666666" })],
-          alignment: AlignmentType.CENTER,
-          spacing: { after: 200 },
-        })
-      )
-    }
-  }
-
-  // Info line
-  children.push(
-    new Paragraph({
-      children: [new TextRun({ text: `共 ${questions.length} 题`, color: "666666" })],
-      alignment: AlignmentType.CENTER,
-      spacing: { after: 400 },
-    })
-  )
-
-  // Questions
-  children.push(...buildQuestionParagraphs(questions, withAnswer))
 
   const doc = new Document({
     styles: {
@@ -226,35 +212,34 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     return NextResponse.json({ error: "试卷不存在" }, { status: 404 })
   }
 
-  // Get questions from exam's question banks
-  const examConfig = exam.config as { duration?: number; pass_score?: number; bank_ids?: string[] } | null
-  const bankIds = examConfig?.bank_ids || []
+  // Get questions from exam config
+  const config = exam.config as { bank_ids?: string[]; questions_per_type?: Record<string, number> } | null
+  const bankIds = config?.bank_ids || []
 
-  let questions: Question[] = []
-
-  if (bankIds.length > 0) {
-    // Get questions from linked banks
-    const { data: bankQuestions, error: qError } = await client
-      .from("questions")
-      .select("id, type, content, options, answer, explanation")
-      .in("bank_id", bankIds)
-      .order("type")
-      .order("created_at")
-
-    if (!qError && bankQuestions) {
-      questions = bankQuestions as Question[]
-    }
+  if (bankIds.length === 0) {
+    return NextResponse.json({ error: "试卷未配置题库" }, { status: 400 })
   }
 
-  if (questions.length === 0) {
+  // Get questions from banks
+  const { data: questions, error: qError } = await client
+    .from("questions")
+    .select("id, type, content, options, answer, explanation")
+    .in("bank_id", bankIds)
+    .order("type")
+    .order("created_at")
+
+  if (qError) {
+    return NextResponse.json({ error: "获取题目失败" }, { status: 500 })
+  }
+
+  if (!questions || questions.length === 0) {
     return NextResponse.json({ error: "试卷题目为空" }, { status: 400 })
   }
 
-  // Generate docx
-  const title = exam.title
-  const buffer = await generateDocx(title, questions, withAnswer, examConfig ? { duration: examConfig.duration, pass_score: examConfig.pass_score } : undefined)
+  // Dynamic import for ESM-only docx library
+  const docx = await import("docx")
+  const buffer = await generateExamDoc(docx, exam as { title: string; config: { duration?: number; pass_score?: number } | null }, questions as Question[], withAnswer)
 
-  // Return as file download
   const fileName = `${exam.title}_${withAnswer ? "含答案" : "空白"}.docx`
   return new NextResponse(new Uint8Array(buffer), {
     headers: {

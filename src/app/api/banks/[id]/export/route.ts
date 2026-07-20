@@ -1,16 +1,6 @@
 import { NextResponse } from "next/server"
-import { createClient } from "@supabase/supabase-js"
 import { getSession } from "@/lib/auth"
-import {
-  Document,
-  Packer,
-  Paragraph,
-  TextRun,
-  HeadingLevel,
-  AlignmentType,
-  BorderStyle,
-  convertInchesToTwip,
-} from "docx"
+import { createClient } from "@supabase/supabase-js"
 
 export const runtime = "nodejs"
 
@@ -20,46 +10,74 @@ const client = createClient(supabaseUrl, supabaseKey)
 
 interface Question {
   id: string
-  type: "single" | "multiple" | "judge"
+  type: string
   content: string
-  options: Array<{ key: string; text: string }>
+  options: Record<string, string> | null
   answer: string[]
-  explanation?: string | null
+  explanation: string | null
 }
 
-const typeNames: Record<string, string> = {
-  single: "单选题",
-  multiple: "多选题",
-  judge: "判断题",
-}
+// Generate question bank document
+async function generateQuestionBankDoc(
+  docx: typeof import("docx"),
+  title: string,
+  questions: Question[],
+  withAnswer: boolean
+) {
+  const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, BorderStyle, convertInchesToTwip } = docx
 
-function buildQuestionParagraphs(questions: Question[], withAnswer: boolean): Paragraph[] {
-  const paragraphs: Paragraph[] = []
-  const grouped = {
-    single: questions.filter((q) => q.type === "single"),
-    multiple: questions.filter((q) => q.type === "multiple"),
-    judge: questions.filter((q) => q.type === "judge"),
+  const typeNames: Record<string, string> = {
+    single: "单选题",
+    multiple: "多选题",
+    judge: "判断题",
   }
 
+  // Group questions by type
+  const grouped: Record<string, Question[]> = {}
+  for (const q of questions) {
+    if (!grouped[q.type]) grouped[q.type] = []
+    grouped[q.type].push(q)
+  }
+
+  const children: any[] = []
+
+  // Title
+  children.push(
+    new Paragraph({
+      children: [new TextRun({ text: title, bold: true, size: 36, font: "Microsoft YaHei" })],
+      heading: HeadingLevel.TITLE,
+      alignment: AlignmentType.CENTER,
+    })
+  )
+
+  // Subtitle
+  children.push(
+    new Paragraph({
+      children: [new TextRun({ text: withAnswer ? "（含答案版）" : "（空白试卷）", color: "666666", size: 24 })],
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 400 },
+    })
+  )
+
+  // Questions by type
   let globalIndex = 0
+  for (const [type, typeQuestions] of Object.entries(grouped)) {
+    if (typeQuestions.length === 0) continue
 
-  for (const [type, qs] of Object.entries(grouped)) {
-    if (qs.length === 0) continue
-
-    // Section title
-    paragraphs.push(
+    // Type heading
+    children.push(
       new Paragraph({
-        text: typeNames[type] || type,
-        heading: HeadingLevel.HEADING_2,
+        children: [new TextRun({ text: typeNames[type] || type, bold: true, size: 28, font: "Microsoft YaHei" })],
+        heading: HeadingLevel.HEADING_1,
         spacing: { before: 400, after: 200 },
       })
     )
 
-    for (const q of qs) {
+    for (const q of typeQuestions) {
       globalIndex++
 
       // Question content
-      paragraphs.push(
+      children.push(
         new Paragraph({
           children: [
             new TextRun({ text: `${globalIndex}. `, bold: true }),
@@ -70,30 +88,33 @@ function buildQuestionParagraphs(questions: Question[], withAnswer: boolean): Pa
       )
 
       // Options
-      for (const opt of q.options) {
-        paragraphs.push(
-          new Paragraph({
-            text: `    ${opt.key}. ${opt.text}`,
-            spacing: { after: 40 },
-          })
-        )
+      if (q.options && q.type !== "judge") {
+        const options = q.options
+        for (const [key, value] of Object.entries(options)) {
+          children.push(
+            new Paragraph({
+              children: [new TextRun({ text: `    ${key}. ${value}` })],
+              spacing: { after: 50 },
+            })
+          )
+        }
       }
 
       // Answer and explanation (if withAnswer)
       if (withAnswer) {
         const answerText = q.answer.join(", ")
-        paragraphs.push(
+        children.push(
           new Paragraph({
             children: [
               new TextRun({ text: "【答案】", bold: true, color: "2E7D32" }),
               new TextRun({ text: answerText, color: "2E7D32" }),
             ],
-            spacing: { before: 80, after: 40 },
+            spacing: { before: 100, after: 50 },
           })
         )
 
         if (q.explanation) {
-          paragraphs.push(
+          children.push(
             new Paragraph({
               children: [
                 new TextRun({ text: "【解析】", bold: true, color: "1565C0" }),
@@ -104,8 +125,8 @@ function buildQuestionParagraphs(questions: Question[], withAnswer: boolean): Pa
           )
         }
 
-        // Separator line
-        paragraphs.push(
+        // Separator
+        children.push(
           new Paragraph({
             border: {
               bottom: { style: BorderStyle.SINGLE, size: 1, color: "E0E0E0" },
@@ -114,8 +135,8 @@ function buildQuestionParagraphs(questions: Question[], withAnswer: boolean): Pa
           })
         )
       } else {
-        // Blank space for answer
-        paragraphs.push(
+        // Space for blank version
+        children.push(
           new Paragraph({
             text: "",
             spacing: { after: 150 },
@@ -125,19 +146,11 @@ function buildQuestionParagraphs(questions: Question[], withAnswer: boolean): Pa
     }
   }
 
-  return paragraphs
-}
-
-async function generateDocx(
-  title: string,
-  questions: Question[],
-  withAnswer: boolean
-): Promise<Buffer> {
   const doc = new Document({
     styles: {
       default: {
         document: {
-          run: { font: "SimSun", size: 24 }, // 12pt
+          run: { font: "SimSun", size: 24 },
         },
       },
     },
@@ -153,31 +166,7 @@ async function generateDocx(
             },
           },
         },
-        children: [
-          // Title
-          new Paragraph({
-            text: title,
-            heading: HeadingLevel.HEADING_1,
-            alignment: AlignmentType.CENTER,
-            spacing: { after: 200 },
-          }),
-          // Subtitle
-          new Paragraph({
-            text: withAnswer ? "（含答案版）" : "（空白试卷）",
-            alignment: AlignmentType.CENTER,
-            spacing: { after: 400 },
-          }),
-          // Info line
-          new Paragraph({
-            children: [
-              new TextRun({ text: `共 ${questions.length} 题`, color: "666666" }),
-            ],
-            alignment: AlignmentType.CENTER,
-            spacing: { after: 400 },
-          }),
-          // Questions
-          ...buildQuestionParagraphs(questions, withAnswer),
-        ],
+        children,
       },
     ],
   })
@@ -194,10 +183,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const { searchParams } = new URL(request.url)
   const withAnswer = searchParams.get("answer") !== "false"
 
-  // Get bank info
+  // Get question bank info
   const { data: bank, error: bankError } = await client
     .from("question_banks")
-    .select("id, name, material_id")
+    .select("id, title")
     .eq("id", id)
     .single()
 
@@ -218,15 +207,15 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   }
 
   if (!questions || questions.length === 0) {
-    return NextResponse.json({ error: "题库为空" }, { status: 400 })
+    return NextResponse.json({ error: "题库题目为空" }, { status: 400 })
   }
 
-  // Generate docx
-  const title = `${bank.name} - 题库`
-  const buffer = await generateDocx(title, questions as Question[], withAnswer)
+  // Dynamic import for ESM-only docx library
+  const docx = await import("docx")
+  const title = bank.title
+  const buffer = await generateQuestionBankDoc(docx, title, questions as Question[], withAnswer)
 
-  // Return as file download
-  const fileName = `${bank.name}_${withAnswer ? "含答案" : "空白"}.docx`
+  const fileName = `${bank.title}_${withAnswer ? "含答案" : "空白"}.docx`
   return new NextResponse(new Uint8Array(buffer), {
     headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
