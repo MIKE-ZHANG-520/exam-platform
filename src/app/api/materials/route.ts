@@ -71,6 +71,18 @@ export async function POST(request: NextRequest) {
       contentType: file.type || "application/octet-stream",
     });
 
+    // 验证文件是否成功上传到存储
+    try {
+      const presignedUrl = await storage.generatePresignedUrl({ key, expireTime: 60 });
+      const headResp = await fetch(presignedUrl, { method: "HEAD" });
+      if (!headResp.ok) {
+        throw new Error(`文件上传验证失败：存储返回 ${headResp.status}，请重试`);
+      }
+    } catch (verifyErr) {
+      const msg = verifyErr instanceof Error ? verifyErr.message : String(verifyErr);
+      throw new Error(`文件存储验证失败：${msg}`);
+    }
+
     // 标题优先用用户填的，否则用文件名去掉扩展名
     const finalTitle = title || deriveTitleFromFileName(file.name);
 

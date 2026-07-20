@@ -71,10 +71,24 @@ export async function POST(req: NextRequest, { params }: Params) {
     let text = material.content_text || "";
     if (!text || text.length < 20) {
       const fileUrl = await presignUrl(material.file_key, 3600);
+      
+      // 先检查文件是否存在
+      const headResp = await fetch(fileUrl, { method: "HEAD" });
+      if (headResp.status === 404) {
+        throw new Error("文件在存储中不存在，可能上传失败。请删除此材料后重新上传");
+      }
+      if (!headResp.ok) {
+        throw new Error(`无法访问文件：存储返回 ${headResp.status}`);
+      }
+      
       const fetchClient = makeFetch(req.headers);
       const resp = await fetchClient.fetch(fileUrl);
       if (resp.status_code && resp.status_code !== 0) {
-        throw new Error(resp.status_message || "文件解析失败");
+        const errMsg = resp.status_message || "文件解析失败";
+        if (errMsg.includes("404")) {
+          throw new Error("文件在存储中不存在，可能上传失败。请删除此材料后重新上传");
+        }
+        throw new Error(errMsg);
       }
       text = (resp.content || [])
         .filter((item) => item.type === "text" && item.text)
