@@ -81,6 +81,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         throw new Error(`无法访问文件：存储返回 ${headResp.status}`);
       }
       
+      // 使用 fetchClient 解析文件内容
       const fetchClient = makeFetch(req.headers);
       const resp = await fetchClient.fetch(fileUrl);
       if (resp.status_code && resp.status_code !== 0) {

@@ -71,16 +71,16 @@ export async function POST(request: NextRequest) {
       contentType: file.type || "application/octet-stream",
     });
 
-    // 验证文件是否成功上传到存储
+    // 验证文件是否成功上传到存储（可选，失败不阻塞）
     try {
-      const presignedUrl = await storage.generatePresignedUrl({ key, expireTime: 60 });
-      const headResp = await fetch(presignedUrl, { method: "HEAD" });
+      const verifyUrl = await storage.generatePresignedUrl({ key, expireTime: 60 });
+      const headResp = await fetch(verifyUrl, { method: "HEAD" });
       if (!headResp.ok) {
-        throw new Error(`文件上传验证失败：存储返回 ${headResp.status}，请重试`);
+        console.warn(`文件上传验证失败：存储返回 ${headResp.status}，但继续处理`);
       }
     } catch (verifyErr) {
-      const msg = verifyErr instanceof Error ? verifyErr.message : String(verifyErr);
-      throw new Error(`文件存储验证失败：${msg}`);
+      // 验证失败不阻塞上传，只记录警告
+      console.warn("文件存储验证跳过:", verifyErr instanceof Error ? verifyErr.message : String(verifyErr));
     }
 
     // 标题优先用用户填的，否则用文件名去掉扩展名
