@@ -10,8 +10,9 @@ import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
 import { apiGet, apiPatch, apiPost, apiDelete } from "@/lib/http"
 import { toast } from "sonner"
-import { ArrowLeft, Loader2, Sparkles, Pencil, Save, CheckCircle2, XCircle, ListTree, ShieldAlert, FileText } from "lucide-react"
+import { ArrowLeft, Loader2, Sparkles, Pencil, Save, CheckCircle2, XCircle, ListTree, ShieldAlert, FileText, Eye } from "lucide-react"
 import { OutlineRenderer } from "@/components/admin/outline-renderer"
+import { FilePreview } from "@/components/admin/file-preview"
 
 // —— 生成要求预设模板（题库/提纲共用） ——
 const NOTE_TEMPLATES: { label: string; value: string }[] = [
@@ -850,9 +851,36 @@ export default function MaterialDetailPage() {
 
 			<Tabs defaultValue="worker" className="space-y-4">
 				<TabsList className="bg-white border border-gray-200 shadow-sm">
+					<TabsTrigger value="preview">
+						<Eye className="w-3.5 h-3.5 mr-1.5" />
+						预览文件
+					</TabsTrigger>
 					<TabsTrigger value="worker">🧑‍🏭 工人版</TabsTrigger>
 					<TabsTrigger value="trainer">🎓 培训师版</TabsTrigger>
 				</TabsList>
+				<TabsContent value="preview">
+					<Card className="border-0 brand-card">
+						<CardHeader className="pb-3">
+							<CardTitle className="text-base flex items-center gap-2">
+								<FileText className="w-4 h-4 text-[#1677ff]" />
+								文件预览
+								<Badge variant="outline" className="ml-1 text-[10px] text-gray-500 font-normal uppercase">
+									{data.material.file_type}
+								</Badge>
+							</CardTitle>
+						</CardHeader>
+						<CardContent>
+							{isParsed ? (
+								<FilePreview materialId={id} />
+							) : (
+								<div className="flex flex-col items-center justify-center gap-3 py-16 text-slate-500">
+									<FileText className="h-10 w-10 text-slate-300" />
+									<p className="text-sm">请先解析文件后才能预览</p>
+								</div>
+							)}
+						</CardContent>
+					</Card>
+				</TabsContent>
 				<TabsContent value="worker">
 					<OutlineCard outline={worker} audience="worker" onRefresh={load} materialId={id} isParsed={isParsed} />
 				</TabsContent>
