@@ -60,27 +60,66 @@ export async function POST(request: NextRequest) {
       );
     }
     const fileType = ALLOWED_TYPES[ext];
+    
+    // 读取文件内容
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
+    console.log(`[Upload] 文件: ${file.name}, 大小: ${buffer.byteLength} bytes, 类型: ${file.type}`);
 
     const safeName = sanitizeFileName(file.name);
     const storage = getStorage();
-    const key = await storage.uploadFile({
-      fileContent: buffer,
-      fileName: `materials/${Date.now()}_${safeName}`,
-      contentType: file.type || "application/octet-stream",
-    });
+    const fileName = `materials/${Date.now()}_${safeName}`;
+    
+    // 带重试的上传（最多3次）
+    let key: string | null = null;
+    let lastError: Error | null = null;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        console.log(`[Upload] 尝试上传 (第${attempt}次): ${fileName}`);
+        key = await storage.uploadFile({
+          fileContent: buffer,
+          fileName,
+          contentType: file.type || "application/octet-stream",
+        });
+        console.log(`[Upload] 上传成功: ${key}`);
+        break;
+      } catch (uploadErr) {
+        lastError = uploadErr instanceof Error ? uploadErr : new Error(String(uploadErr));
+        console.warn(`[Upload] 第${attempt}次上传失败: ${lastError.message}`);
+        if (attempt < 3) {
+          // 等待后重试（指数退避）
+          await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+        }
+      }
+    }
+    
+    if (!key) {
+      console.error(`[Upload] 上传最终失败: ${lastError?.message}`);
+      return NextResponse.json(
+        { error: `文件上传失败: ${lastError?.message || "未知错误"}，请重试` },
+        { status: 500 }
+      );
+    }
 
-    // 验证文件是否成功上传到存储（可选，失败不阻塞）
+    // 验证文件是否成功上传到存储（阻塞式，确保文件存在）
     try {
       const verifyUrl = await storage.generatePresignedUrl({ key, expireTime: 60 });
       const headResp = await fetch(verifyUrl, { method: "HEAD" });
       if (!headResp.ok) {
-        console.warn(`文件上传验证失败：存储返回 ${headResp.status}，但继续处理`);
+        console.error(`[Upload] 文件验证失败: 存储返回 ${headResp.status}, key=${key}`);
+        // 删除已上传的文件
+        try { await storage.deleteFile({ fileKey: key }); } catch {}
+        return NextResponse.json(
+          { error: `文件上传验证失败: 存储返回 ${headResp.status}，请重试` },
+          { status: 500 }
+        );
       }
+      console.log(`[Upload] 文件验证成功: ${key}`);
     } catch (verifyErr) {
-      // 验证失败不阻塞上传，只记录警告
-      console.warn("文件存储验证跳过:", verifyErr instanceof Error ? verifyErr.message : String(verifyErr));
+      const errMsg = verifyErr instanceof Error ? verifyErr.message : String(verifyErr);
+      console.error(`[Upload] 文件验证异常: ${errMsg}`);
+      // 验证异常不阻塞，但记录警告
+      console.warn(`[Upload] 验证跳过: ${errMsg}`);
     }
 
     // 标题优先用用户填的，否则用文件名去掉扩展名
@@ -101,10 +140,18 @@ export async function POST(request: NextRequest) {
       .select("id, title, file_name, file_type, file_size, status, owner_id, created_at")
       .single();
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) {
+      console.error(`[Upload] 数据库写入失败: ${error.message}`);
+      // 数据库写入失败，删除已上传的文件
+      try { await storage.deleteFile({ fileKey: key }); } catch {}
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    
+    console.log(`[Upload] 材料创建成功: id=${data.id}, key=${key}`);
     return NextResponse.json({ material: data });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[Upload] 异常: ${msg}`);
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
