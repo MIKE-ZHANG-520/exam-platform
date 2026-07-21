@@ -262,7 +262,7 @@ export default function WorkersPage() {
     phone: ["手机号", "电话", "联系电话", "phone", "mobile"],
     gender: ["性别", "gender", "sex"],
     work_type: ["工种", "岗位", "职务", "work type", "job"],
-    team_name: ["班组", "班组名称", "team", "group"],
+    team_name: ["班组", "班组（工种）", "班组名称", "team", "group"],
     project: ["项目", "项目名称", "project"],
     hire_date: ["入职日期", "入职时间", "进场日期", "hire date"],
   }
@@ -293,6 +293,23 @@ export default function WorkersPage() {
       const wb = XLSX.read(buffer, { type: "buffer" })
       const sheet = wb.Sheets[wb.SheetNames[0]]
       if (!sheet) return toast.error("工作簿为空")
+
+      // 处理合并单元格（与后端逻辑一致）
+      const merges = sheet["!merges"] || []
+      for (const merge of merges) {
+        const startCell = XLSX.utils.encode_cell({ r: merge.s.r, c: merge.s.c })
+        const startValue = sheet[startCell]?.v
+        if (startValue !== undefined) {
+          for (let r = merge.s.r; r <= merge.e.r; r++) {
+            for (let c = merge.s.c; c <= merge.e.c; c++) {
+              const cell = XLSX.utils.encode_cell({ r, c })
+              if (!sheet[cell]) {
+                sheet[cell] = { t: "s", v: String(startValue) }
+              }
+            }
+          }
+        }
+      }
 
       const rows: string[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" }) as string[][]
       if (rows.length < 2) return toast.error("表格中未找到数据行")
