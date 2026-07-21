@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 import { db } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 import {
   encryptSensitive,
   maskIdCard,
@@ -115,8 +115,11 @@ function extractWorker(row: unknown[], colMap: Record<number, string>): WorkerDa
 
 // POST /api/workers/import (multipart/form-data: file, project_id, team_id)
 export async function POST(request: NextRequest) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: "未登录" }, { status: 401 });
+  try {
+    await requireAdmin();
+  } catch {
+    return NextResponse.json({ error: "无权限，仅管理员可操作" }, { status: 403 });
+  }
 
   let formData: FormData;
   try {

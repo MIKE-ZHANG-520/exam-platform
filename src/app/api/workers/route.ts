@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 import {
   encryptSensitive,
   decryptSensitive,
@@ -58,8 +58,11 @@ interface WorkerRow {
 
 // GET /api/workers?project_id=&team_id=&work_type=&status=&keyword=&page=&size=&search=&worker_id=
 export async function GET(request: NextRequest) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: "未登录" }, { status: 401 });
+  try {
+    await requireAdmin();
+  } catch {
+    return NextResponse.json({ error: "无权限，仅管理员可访问" }, { status: 403 });
+  }
 
   const url = new URL(request.url);
   const projectId = url.searchParams.get("project_id");
@@ -181,8 +184,11 @@ export async function GET(request: NextRequest) {
 
 // POST /api/workers
 export async function POST(request: NextRequest) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: "未登录" }, { status: 401 });
+  try {
+    await requireAdmin();
+  } catch {
+    return NextResponse.json({ error: "无权限，仅管理员可操作" }, { status: 403 });
+  }
 
   let body: WorkerPayload;
   try {

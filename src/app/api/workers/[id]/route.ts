@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 import {
   encryptSensitive,
   decryptSensitive,
@@ -42,8 +42,11 @@ interface RouteContext {
 
 export async function GET(request: NextRequest, ctx: RouteContext) {
   const { id } = await ctx.params;
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: "未登录" }, { status: 401 });
+  try {
+    await requireAdmin();
+  } catch {
+    return NextResponse.json({ error: "无权限，仅管理员可访问" }, { status: 403 });
+  }
 
   const url = new URL(request.url);
   const reveal = url.searchParams.get("reveal") === "1";
@@ -77,7 +80,7 @@ export async function GET(request: NextRequest, ctx: RouteContext) {
     team_name: (teamRes.data as { name?: string } | null)?.name ?? "",
   };
 
-  if (reveal && session.role === "admin") {
+  if (reveal) {
     item.id_card = decryptSensitive(row.id_card_encrypted);
   }
   return NextResponse.json({ item });
@@ -85,8 +88,11 @@ export async function GET(request: NextRequest, ctx: RouteContext) {
 
 export async function PATCH(request: NextRequest, ctx: RouteContext) {
   const { id } = await ctx.params;
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: "未登录" }, { status: 401 });
+  try {
+    await requireAdmin();
+  } catch {
+    return NextResponse.json({ error: "无权限，仅管理员可操作" }, { status: 403 });
+  }
 
   let body: UpdateBody;
   try {
@@ -145,8 +151,11 @@ export async function PATCH(request: NextRequest, ctx: RouteContext) {
 
 export async function DELETE(_request: NextRequest, ctx: RouteContext) {
   const { id } = await ctx.params;
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: "未登录" }, { status: 401 });
+  try {
+    await requireAdmin();
+  } catch {
+    return NextResponse.json({ error: "无权限，仅管理员可操作" }, { status: 403 });
+  }
   const client = db();
   const { error } = await client.from("workers").delete().eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

@@ -44,6 +44,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner"
+import { apiGet } from "@/lib/http"
 
 interface WorkerInfo {
   id: string;
@@ -114,6 +115,23 @@ export default function WorkerProfilePage() {
   const [trainings, setTrainings] = useState<Training[]>([]);
   const [briefings, setBriefings] = useState<Briefing[]>([]);
   const [loading, setLoading] = useState(true);
+  const [checking, setChecking] = useState(true);
+
+  // 权限检查：仅 admin 可访问
+  useEffect(() => {
+    apiGet<{ user: { role: string } | null }>("/api/auth/me")
+      .then((res) => {
+        if (!res.user || res.user.role !== "admin") {
+          toast.error("无权限访问工人档案");
+          router.push("/admin/dashboard");
+        } else {
+          setChecking(false);
+        }
+      })
+      .catch(() => {
+        router.push("/admin/dashboard");
+      });
+  }, [router]);
 
   // Dialog states
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
@@ -379,7 +397,7 @@ export default function WorkerProfilePage() {
     printWindow.print();
   };
 
-  if (loading) {
+  if (checking || loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />

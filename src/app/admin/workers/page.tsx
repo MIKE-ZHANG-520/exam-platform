@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -64,6 +65,7 @@ const EMPTY_FORM: FormState = {
 }
 
 export default function WorkersPage() {
+  const router = useRouter()
   const [items, setItems] = useState<Worker[]>([])
   const [total, setTotal] = useState(0)
   const [projects, setProjects] = useState<ProjectRef[]>([])
@@ -77,6 +79,23 @@ export default function WorkersPage() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<Worker | null>(null)
   const [saving, setSaving] = useState(false)
+  const [checking, setChecking] = useState(true)
+
+  // 权限检查：仅 admin 可访问
+  useEffect(() => {
+    apiGet<{ user: { role: string } | null }>("/api/auth/me")
+      .then((res) => {
+        if (!res.user || res.user.role !== "admin") {
+          toast.error("无权限访问花名册")
+          router.push("/admin/dashboard")
+        } else {
+          setChecking(false)
+        }
+      })
+      .catch(() => {
+        router.push("/admin/dashboard")
+      })
+  }, [router])
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
 
   // 导入
@@ -311,6 +330,14 @@ export default function WorkersPage() {
     } catch (err) {
       toast.error(`文件解析失败：${(err as Error).message}`)
     }
+  }
+
+  if (checking) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    )
   }
 
   return (
