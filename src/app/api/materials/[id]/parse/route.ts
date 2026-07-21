@@ -127,12 +127,18 @@ export async function POST(req: NextRequest, { params }: Params) {
                       if (run.T) {
                         // pdf2json 用 encodeURIComponent 编码文本，但某些 PDF（含中文/特殊字体）
                         // 会产生非法 URI 序列，导致 decodeURIComponent 抛出 "URI malformed"
-                        // 此时回退到原始文本
+                        // 降级策略：decodeURIComponent → unescape → 原始文本
+                        let decoded: string;
                         try {
-                          textParts.push(decodeURIComponent(run.T));
+                          decoded = decodeURIComponent(run.T);
                         } catch {
-                          textParts.push(run.T);
+                          try {
+                            decoded = unescape(run.T);
+                          } catch {
+                            decoded = run.T;
+                          }
                         }
+                        textParts.push(decoded);
                       }
                     }
                   }
