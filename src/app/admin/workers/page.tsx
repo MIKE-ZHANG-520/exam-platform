@@ -255,16 +255,17 @@ export default function WorkersPage() {
     URL.revokeObjectURL(url)
   }
 
-  // 列名映射（与后端一致）
+  // 列名映射（与后端完全一致）
   const COLUMN_ALIASES: Record<string, string[]> = {
-    name: ["姓名", "名字", "工人姓名", "人员姓名", "name"],
-    id_card: ["身份证号", "身份证", "证件号", "id card"],
-    phone: ["手机号", "电话", "联系电话", "phone", "mobile"],
+    name: ["姓名", "名字", "工人姓名", "人员姓名", "name", "worker name", "employee name"],
+    id_card: ["身份证号", "身份证", "证件号", "id card", "id number", "identity"],
+    phone: ["手机号", "电话", "联系电话", "手机号码", "phone", "mobile", "tel"],
     gender: ["性别", "gender", "sex"],
-    work_type: ["工种", "岗位", "职务", "work type", "job"],
-    team_name: ["班组", "班组（工种）", "班组名称", "team", "group"],
-    project: ["项目", "项目名称", "project"],
-    hire_date: ["入职日期", "入职时间", "进场日期", "hire date"],
+    work_type: ["工种", "岗位", "职务", "职位", "work type", "job", "position", "role"],
+    team_name: ["班组", "班组名称", "班组（工种）", "施工班组", "team", "group", "department"],
+    project: ["项目", "项目名称", "工程", "project"],
+    hire_date: ["入职日期", "入职时间", "进场日期", "入职", "hire date", "join date", "start date"],
+    status: ["状态", "人员状态", "status"],
   }
 
   const matchColumn = (header: string): string | null => {
