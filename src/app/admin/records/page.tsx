@@ -394,8 +394,8 @@ function RecordsInner() {
                             </Button>
                           </Link>
                           {userRole === "admin" && (
-                            <Button variant="ghost" size="sm" onClick={() => deleteRecord(r.id)} className="hover:text-red-600 text-gray-400">
-                              <Trash2 className="h-4 w-4" />
+                            <Button variant="ghost" size="sm" onClick={() => deleteRecord(r.id)} className="text-red-500 hover:text-red-700 hover:bg-red-50">
+                              <Trash2 className="mr-1 h-4 w-4" /> 删除
                             </Button>
                           )}
                         </div>
@@ -528,8 +528,8 @@ function RecordsInner() {
                                       </Button>
                                     </Link>
                                     {userRole === "admin" && (
-                                      <Button variant="ghost" size="sm" onClick={() => deleteRecord(r.id)} className="hover:text-red-600 text-gray-400">
-                                        <Trash2 className="h-4 w-4" />
+                                      <Button variant="ghost" size="sm" onClick={() => deleteRecord(r.id)} className="text-red-500 hover:text-red-700 hover:bg-red-50">
+                                        <Trash2 className="mr-1 h-4 w-4" /> 删除
                                       </Button>
                                     )}
                                   </div>
@@ -659,8 +659,8 @@ function RecordsInner() {
                                       </Button>
                                     </Link>
                                     {userRole === "admin" && (
-                                      <Button variant="ghost" size="sm" onClick={() => deleteRecord(r.id)} className="hover:text-red-600 text-gray-400">
-                                        <Trash2 className="h-4 w-4" />
+                                      <Button variant="ghost" size="sm" onClick={() => deleteRecord(r.id)} className="text-red-500 hover:text-red-700 hover:bg-red-50">
+                                        <Trash2 className="mr-1 h-4 w-4" /> 删除
                                       </Button>
                                     )}
                                   </div>
