@@ -75,7 +75,7 @@ export default function MaterialsPage() {
 	}, [load])
 
 	const pollParseStatus = async (materialId: string) => {
-		const maxAttempts = 60 // 最多轮询 60 次（约 2 分钟）
+		const maxAttempts = 150 // 最多轮询 150 次（约 5 分钟，与后端 maxDuration=300 对齐）
 		let attempts = 0
 
 		while (attempts < maxAttempts) {
@@ -93,14 +93,18 @@ export default function MaterialsPage() {
 					toast.error(`解析失败：${res.material.error_message || "未知错误"}`)
 					return false
 				} else if (status === "parsing") {
-					setParsingStatus({ materialId, progress: `正在解析... (${attempts * 2}秒)` })
+					const elapsed = attempts * 2
+					const progressMsg = elapsed < 60
+						? `正在解析... (${elapsed}秒)`
+						: `正在解析... (${Math.floor(elapsed / 60)}分${elapsed % 60}秒)，大文件可能需要几分钟，请耐心等待`
+					setParsingStatus({ materialId, progress: progressMsg })
 				}
 			} catch {
 				// 忽略单次轮询错误，继续重试
 			}
 		}
 
-		toast.error("解析超时，请稍后刷新页面查看")
+		toast.error("解析超时，请稍后刷新页面查看状态")
 		return false
 	}
 
