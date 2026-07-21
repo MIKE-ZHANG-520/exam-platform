@@ -3,12 +3,11 @@
 import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { apiGet, fmtDate } from "@/lib/http"
 import { toast } from "sonner"
-import { ListTree, ArrowRight, Search, BookOpen, CheckCircle2, Pencil, Filter } from "lucide-react"
+import { ListTree, ArrowRight, Search, BookOpen, Filter } from "lucide-react"
 import { PageHeader } from "@/components/admin/page-header"
 
 interface Bank {
@@ -81,9 +80,9 @@ export default function BanksPage() {
 			</div>
 
 			{loading ? (
-				<div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-					{Array.from({ length: 3 }).map((_, i) => (
-						<div key={i} className="skeleton h-40 rounded-xl" />
+				<div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3">
+					{Array.from({ length: 8 }).map((_, i) => (
+						<div key={i} className="skeleton h-28 rounded-lg" />
 					))}
 				</div>
 			) : filtered.length === 0 ? (
@@ -98,63 +97,59 @@ export default function BanksPage() {
 					</Link>
 				</div>
 			) : (
-				<div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+				<div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3">
 					{filtered.map((b) => {
 						const published = (b.status || "draft") === "published"
 						return (
-							<Card key={b.id} className="brand-card border-0 hover-lift">
-								<CardContent className="p-5">
-									<div className="flex items-start gap-3">
-										<div
+							<Card key={b.id} className="brand-card border-0 hover-lift group">
+								<CardContent className="p-3.5">
+									{/* 顶部：状态 + 难度 */}
+									<div className="flex items-center justify-between mb-2">
+										<span
 											className={[
-												"w-11 h-11 rounded-xl flex items-center justify-center",
+												"text-[10px] font-medium px-1.5 py-0.5 rounded",
 												b.difficulty === "easy"
-													? "bg-gradient-to-br from-emerald-50 to-emerald-100 text-emerald-600"
-													: "bg-gradient-to-br from-blue-50 to-blue-100 text-[#1677ff]",
+													? "bg-emerald-50 text-emerald-600"
+													: "bg-blue-50 text-[#1677ff]",
 											].join(" ")}
 										>
-											<ListTree className="w-5 h-5" />
-										</div>
-										<div className="min-w-0 flex-1">
-											<div className="flex items-center justify-between gap-2">
-												<div className="text-[14px] font-semibold text-gray-900 line-clamp-1">{b.title}</div>
-												<Badge
-													variant="outline"
-													className={
-														published
-															? "bg-emerald-50 text-emerald-700 border-emerald-200"
-															: "bg-orange-50 text-orange-700 border-orange-200"
-													}
-												>
-													{published ? (
-														<>
-															<CheckCircle2 className="w-3 h-3 mr-1" />
-															已发布
-														</>
-													) : (
-														<>
-															<Pencil className="w-3 h-3 mr-1" />
-															待审
-														</>
-													)}
-												</Badge>
-											</div>
-											<div className="text-[11px] text-gray-500 mt-1">
-												{b.difficulty === "easy" ? "简易题库" : "中等题库"} · 创建于 {fmtDate(b.created_at)}
-											</div>
-										</div>
+											{b.difficulty === "easy" ? "简易" : "中等"}
+										</span>
+										<span
+											className={[
+												"text-[10px] px-1.5 py-0.5 rounded",
+												published
+													? "bg-emerald-50 text-emerald-600"
+													: "bg-orange-50 text-orange-600",
+											].join(" ")}
+										>
+											{published ? "已发布" : "待审"}
+										</span>
 									</div>
 
-									<div className="mt-4 flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2">
-										<span className="text-xs text-gray-500">题目总数</span>
-										<span className="text-[18px] font-semibold text-gray-900 tabular-nums">{b.total_count}</span>
+									{/* 标题 */}
+									<div className="text-[13px] font-medium text-gray-900 line-clamp-2 leading-snug mb-2 min-h-[2.5em]">
+										{b.title}
 									</div>
 
-									<Link href={`/admin/banks/${b.id}`}>
-										<Button variant="outline" size="sm" className="w-full mt-3 hover:border-[#1677ff] hover:text-[#1677ff]">
-											查看题目 <ArrowRight className="ml-auto h-3 w-3" />
-										</Button>
-									</Link>
+									{/* 题目数量 */}
+									<div className="flex items-center gap-1 text-[11px] text-gray-500 mb-2.5">
+										<ListTree className="w-3 h-3" />
+										<span className="tabular-nums font-medium text-gray-700">{b.total_count}</span>
+										<span>题</span>
+									</div>
+
+									{/* 底部：时间 + 操作 */}
+									<div className="flex items-center justify-between pt-2 border-t border-gray-100">
+										<span className="text-[10px] text-gray-400">{fmtDate(b.created_at)}</span>
+										<div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+											<Link href={`/admin/banks/${b.id}`}>
+												<button className="p-1 rounded hover:bg-blue-50 text-gray-400 hover:text-[#1677ff] transition-colors" title="查看题目">
+													<ArrowRight className="w-3.5 h-3.5" />
+												</button>
+											</Link>
+										</div>
+									</div>
 								</CardContent>
 							</Card>
 						)
