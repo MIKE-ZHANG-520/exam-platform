@@ -82,9 +82,8 @@ function findHeaderRow(rows: unknown[][]): { headerIdx: number; colMap: Record<n
       }
     }
     
-    // 至少匹配3个关键字段才认为是表头
-    const firstKey = Object.keys(colMap)[0];
-    if (matchCount >= 3 && (firstKey ? colMap[Number(firstKey)] === "name" : false || Object.values(colMap).includes("name"))) {
+    // 至少匹配3个关键字段才认为是表头，且必须包含"姓名"字段
+    if (matchCount >= 3 && Object.values(colMap).includes("name")) {
       return { headerIdx: i, colMap };
     }
   }
