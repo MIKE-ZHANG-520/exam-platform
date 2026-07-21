@@ -13,6 +13,7 @@ import { toast } from "sonner"
 import { ArrowLeft, Loader2, Sparkles, Pencil, Save, CheckCircle2, XCircle, ListTree, ShieldAlert, FileText, Eye, Download } from "lucide-react"
 import { OutlineRenderer } from "@/components/admin/outline-renderer"
 import { FilePreview } from "@/components/admin/file-preview"
+import { parsePDFText } from "@/lib/pdf-parser"
 
 // —— 生成要求预设模板（题库/提纲共用） ——
 const NOTE_TEMPLATES: { label: string; value: string }[] = [
@@ -126,6 +127,7 @@ interface Material {
 	title: string
 	file_name: string
 	file_type: string
+	file_url?: string | null
 	status: string
 	error_message?: string | null
 	metadata?: MaterialMetadata | null
@@ -656,9 +658,38 @@ export default function MaterialDetailPage() {
 									className="mt-3 bg-amber-600 hover:bg-amber-700 text-white"
 									onClick={async () => {
 										try {
-											toast.info("正在解析文件，请稍候...")
-											await apiPost(`/api/materials/${id}/parse`, {})
-											toast.success("解析完成")
+											const isPDF = data.material.file_type === "pdf" || data.material.file_name.toLowerCase().endsWith(".pdf")
+											
+											if (isPDF && data.material.file_url) {
+												// PDF 文件使用前端解析
+												toast.info("正在解析 PDF 文件，请稍候...")
+												
+												const result = await parsePDFText(
+													data.material.file_url,
+													(progress) => {
+														toast.info(`正在解析 PDF... 第 ${progress.currentPage}/${progress.totalPages} 页`)
+													}
+												)
+												
+												if (!result.text || result.text.length < 10) {
+													throw new Error("PDF 文本提取失败，内容过少或为扫描件")
+												}
+												
+												toast.info("保存解析结果...")
+												await apiPost(`/api/materials/${id}/save-parse`, {
+													text: result.text,
+													pageCount: result.pageCount,
+													wordCount: result.wordCount,
+													charCount: result.charCount,
+												})
+												
+												toast.success("PDF 解析完成")
+											} else {
+												// 其他格式使用后端解析
+												toast.info("正在解析文件，请稍候...")
+												await apiPost(`/api/materials/${id}/parse`, {})
+												toast.success("解析完成")
+											}
 											load()
 										} catch (e) {
 											toast.error((e as Error).message)
