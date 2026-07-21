@@ -11,9 +11,31 @@ interface Params {
 export async function GET(_req: NextRequest, { params }: Params) {
   const { id } = await params;
   const client = db();
+  
+  // 检查是否解析超期（超过4分钟还在parsing，说明进程可能被杀）
+  const fourMinutesAgo = new Date(Date.now() - 4 * 60 * 1000).toISOString();
+  const { data: staleCheck } = await client
+    .from("materials")
+    .select("id, status, updated_at")
+    .eq("id", id)
+    .eq("status", "parsing")
+    .maybeSingle();
+  
+  if (staleCheck && staleCheck.updated_at && staleCheck.updated_at < fourMinutesAgo) {
+    // 标记为失败
+    await client
+      .from("materials")
+      .update({ 
+        status: "failed", 
+        error_message: "解析超时，进程可能异常终止。请重新触发解析",
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", id);
+  }
+  
   const { data, error } = await client
     .from("materials")
-    .select("id, title, file_name, file_type, file_key, file_size, status, error_message, content_text, metadata, created_at")
+    .select("id, title, file_name, file_type, file_key, file_size, status, error_message, content_text, metadata, created_at, updated_at")
     .eq("id", id)
     .maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

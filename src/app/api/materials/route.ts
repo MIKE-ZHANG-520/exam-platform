@@ -27,9 +27,22 @@ function deriveTitleFromFileName(fileName: string): string {
 export async function GET() {
   const session = await getSession();
   const client = db();
+  
+  // 先检查是否有"解析中"状态超期的材料（超过4分钟还在parsing，说明进程可能被杀）
+  const fourMinutesAgo = new Date(Date.now() - 4 * 60 * 1000).toISOString();
+  await client
+    .from("materials")
+    .update({ 
+      status: "failed", 
+      error_message: "解析超时，进程可能异常终止。请重新触发解析",
+      updated_at: new Date().toISOString()
+    })
+    .eq("status", "parsing")
+    .lt("updated_at", fourMinutesAgo);
+  
   let query = client
     .from("materials")
-    .select("id, title, file_name, file_type, file_size, status, error_message, owner_id, created_at")
+    .select("id, title, file_name, file_type, file_size, status, error_message, owner_id, created_at, updated_at")
     .order("created_at", { ascending: false })
     .limit(200);
   // 普通用户只能看自己创建的材料
