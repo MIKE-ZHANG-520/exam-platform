@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { apiDelete, apiGet, apiPost, fmtDate } from "@/lib/http"
+import { apiDelete, apiGet, apiPatch, apiPost, fmtDate } from "@/lib/http"
 import { toast } from "sonner"
 import {
 	Loader2,
@@ -157,8 +157,11 @@ export default function MaterialsPage() {
 				} catch (parseErr) {
 					const errMsg = parseErr instanceof Error ? parseErr.message : String(parseErr)
 					toast.error(`PDF 解析失败：${errMsg}`)
-					// 标记为解析失败
-					await apiPost(`/api/materials/${materialId}/parse`, {}).catch(() => {})
+					// 直接标记为解析失败，不调用后端parse API
+					await apiPatch(`/api/materials/${materialId}`, {
+						status: "failed",
+						error_message: `PDF解析失败：${errMsg}`,
+					}).catch(() => {})
 					load()
 				}
 			} else {

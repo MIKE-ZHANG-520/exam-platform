@@ -38,7 +38,7 @@ export async function parsePDFText(
   // 加载 PDF 文档
   const loadingTask = pdfjsLib.getDocument({
     url: fileUrl,
-    cMapUrl: "https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/cmaps/",
+    cMapUrl: `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/cmaps/`,
     cMapPacked: true,
   });
 
