@@ -20,6 +20,7 @@ import {
 	CheckCircle2,
 } from "lucide-react"
 import Link from "next/link"
+import { parsePDFFromFile } from "@/lib/pdf-parser"
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -117,22 +118,68 @@ export default function MaterialsPage() {
 			const res = await apiPost<{ material: { id: string } }>("/api/materials", fd)
 			const materialId = res.material.id
 
-			toast.success("上传成功，正在解析文件内容...")
-			setParsingStatus({ materialId, progress: "开始解析..." })
+			const isPDF = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")
 
-			// 触发解析
-			apiPost(`/api/materials/${materialId}/parse`, {}).catch(() => {})
+			if (isPDF) {
+				// PDF 文件使用前端解析，避免后端超时
+				toast.success("上传成功，正在解析 PDF 内容...")
+				setParsingStatus({ materialId, progress: "开始解析 PDF..." })
 
-			// 轮询解析状态
-			const success = await pollParseStatus(materialId)
+				try {
+					const result = await parsePDFFromFile(
+						file,
+						(progress) => {
+							setParsingStatus({
+								materialId,
+								progress: `正在解析 PDF... 第 ${progress.currentPage}/${progress.totalPages} 页 (${progress.percent}%)`,
+							})
+						},
+					)
 
-			if (success) {
-				toast.success("解析完成！即将跳转到详情页...")
-				setTimeout(() => {
-					router.push(`/admin/materials/${materialId}`)
-				}, 1000)
+					if (!result.text || result.text.length < 10) {
+						throw new Error("PDF 文本提取失败，内容过少或为扫描件（图片PDF无法提取文字）")
+					}
+
+					setParsingStatus({ materialId, progress: "保存解析结果..." })
+
+					// 调用后端 API 保存解析结果
+					await apiPost(`/api/materials/${materialId}/save-parse`, {
+						text: result.text,
+						pageCount: result.pageCount,
+						wordCount: result.wordCount,
+						charCount: result.charCount,
+					})
+
+					toast.success("PDF 解析完成！即将跳转到详情页...")
+					setTimeout(() => {
+						router.push(`/admin/materials/${materialId}`)
+					}, 1000)
+				} catch (parseErr) {
+					const errMsg = parseErr instanceof Error ? parseErr.message : String(parseErr)
+					toast.error(`PDF 解析失败：${errMsg}`)
+					// 标记为解析失败
+					await apiPost(`/api/materials/${materialId}/parse`, {}).catch(() => {})
+					load()
+				}
 			} else {
-				load() // 刷新列表
+				// 其他格式使用后端解析
+				toast.success("上传成功，正在解析文件内容...")
+				setParsingStatus({ materialId, progress: "开始解析..." })
+
+				// 触发解析
+				apiPost(`/api/materials/${materialId}/parse`, {}).catch(() => {})
+
+				// 轮询解析状态
+				const success = await pollParseStatus(materialId)
+
+				if (success) {
+					toast.success("解析完成！即将跳转到详情页...")
+					setTimeout(() => {
+						router.push(`/admin/materials/${materialId}`)
+					}, 1000)
+				} else {
+					load() // 刷新列表
+				}
 			}
 		} catch (e) {
 			toast.error((e as Error).message)
