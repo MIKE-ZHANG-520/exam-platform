@@ -326,7 +326,7 @@ export function AppShell({ children, user }: { children: React.ReactNode; user?:
 										<div className="text-left leading-tight hidden sm:block">
 											<div className="text-sm text-gray-900 font-medium">{me.real_name}</div>
 											<div className="text-[11px] text-gray-500">
-												{me.role === "admin" ? "超级管理员" : "普通管理员"}
+												{me.role === "admin" ? "超级管理员" : me.role === "trainer" ? "培训主管" : "普通管理员"}
 												{me.department ? ` · ${me.department}` : ""}
 											</div>
 										</div>

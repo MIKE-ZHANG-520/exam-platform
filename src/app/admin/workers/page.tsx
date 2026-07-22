@@ -81,14 +81,16 @@ export default function WorkersPage() {
   const [saving, setSaving] = useState(false)
   const [checking, setChecking] = useState(true)
 
-  // 权限检查：仅 admin 可访问
+  // 权限检查：admin 和 trainer 可访问
+  const [userRole, setUserRole] = useState<string>("")
   useEffect(() => {
     apiGet<{ user: { role: string } | null }>("/api/auth/me")
       .then((res) => {
-        if (!res.user || res.user.role !== "admin") {
+        if (!res.user || !["admin", "trainer"].includes(res.user.role)) {
           toast.error("无权限访问花名册")
           router.push("/admin/dashboard")
         } else {
+          setUserRole(res.user.role)
           setChecking(false)
         }
       })
@@ -365,16 +367,18 @@ export default function WorkersPage() {
         subtitle={`共 ${total} 名工人 · 身份证号加密存储 · 支持 Excel/CSV 批量导入`}
         icon={<UserSquare2 className="w-5 h-5" />}
         right={
-          <div className="flex gap-2">
-            <Button variant="secondary" className="gap-1.5" onClick={() => setImportOpen(true)}>
-              <Upload className="w-4 h-4" />
-              批量导入
-            </Button>
-            <Button onClick={openAdd} className="gap-1.5">
-              <Plus className="w-4 h-4" />
-              新增工人
-            </Button>
-          </div>
+          userRole === "admin" ? (
+            <div className="flex gap-2">
+              <Button variant="secondary" className="gap-1.5" onClick={() => setImportOpen(true)}>
+                <Upload className="w-4 h-4" />
+                批量导入
+              </Button>
+              <Button onClick={openAdd} className="gap-1.5">
+                <Plus className="w-4 h-4" />
+                新增工人
+              </Button>
+            </div>
+          ) : null
         }
       />
 
@@ -471,8 +475,12 @@ export default function WorkersPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
-                        <Button size="sm" variant="ghost" onClick={() => openEdit(w)}><Pencil className="w-4 h-4" /></Button>
-                        <Button size="sm" variant="ghost" className="text-red-500 hover:text-red-600" onClick={() => onDelete(w)}><Trash2 className="w-4 h-4" /></Button>
+                        {userRole === "admin" && (
+                          <>
+                            <Button size="sm" variant="ghost" onClick={() => openEdit(w)}><Pencil className="w-4 h-4" /></Button>
+                            <Button size="sm" variant="ghost" className="text-red-500 hover:text-red-600" onClick={() => onDelete(w)}><Trash2 className="w-4 h-4" /></Button>
+                          </>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
