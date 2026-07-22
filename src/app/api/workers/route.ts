@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { requireAdmin } from "@/lib/auth";
+import { requireAdmin, requireTrainerOrAbove } from "@/lib/auth";
 import {
   encryptSensitive,
   decryptSensitive,
@@ -59,9 +59,9 @@ interface WorkerRow {
 // GET /api/workers?project_id=&team_id=&work_type=&status=&keyword=&page=&size=&search=&worker_id=
 export async function GET(request: NextRequest) {
   try {
-    await requireAdmin();
+    await requireTrainerOrAbove();
   } catch {
-    return NextResponse.json({ error: "无权限，仅管理员可访问" }, { status: 403 });
+    return NextResponse.json({ error: "无权限，仅管理员和培训主管可访问" }, { status: 403 });
   }
 
   const url = new URL(request.url);

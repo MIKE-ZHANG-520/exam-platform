@@ -97,6 +97,13 @@ export async function requireAdmin(): Promise<SessionUser> {
 	return s
 }
 
+// 要求 trainer 或 admin 权限（培训业务）
+export async function requireTrainerOrAbove(): Promise<SessionUser> {
+	const s = await requireSession()
+	if (s.role !== "admin" && s.role !== "trainer") throw new AuthError("FORBIDDEN", 403)
+	return s
+}
+
 // 检查是否是 trainer 或 admin（培训业务权限）
 export function isTrainerOrAbove(role: UserRole): boolean {
 	return role === "admin" || role === "trainer"
