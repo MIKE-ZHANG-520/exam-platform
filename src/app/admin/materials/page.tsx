@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input"
 import { apiDelete, apiGet, apiPatch, apiPost, fmtDate } from "@/lib/http"
 import { toast } from "sonner"
 import {
@@ -19,6 +19,11 @@ import {
 	CloudUpload,
 	CheckCircle2,
 	RefreshCw,
+	Search,
+	Filter,
+	Eye,
+	Calendar,
+	HardDrive,
 } from "lucide-react"
 import Link from "next/link"
 import { parsePDFFromFile } from "@/lib/pdf-parser"
@@ -47,11 +52,11 @@ interface Material {
 }
 
 const STATUS_MAP: Record<string, { label: string; className: string }> = {
-	pending: { label: "待解析", className: "bg-gray-50 text-gray-600 border-gray-200" },
-	uploaded: { label: "已上传", className: "bg-blue-50 text-[#1677ff] border-blue-200" },
+	pending: { label: "待解析", className: "bg-slate-100 text-slate-600 border-slate-200" },
+	uploaded: { label: "已上传", className: "bg-blue-50 text-blue-600 border-blue-200" },
 	parsing: { label: "解析中", className: "bg-amber-50 text-amber-700 border-amber-200" },
 	parsed: { label: "已解析", className: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-	generating: { label: "生成中", className: "bg-amber-50 text-amber-700 border-amber-200" },
+	generating: { label: "生成中", className: "bg-violet-50 text-violet-700 border-violet-200" },
 	ready: { label: "已就绪", className: "bg-emerald-50 text-emerald-700 border-emerald-200" },
 	failed: { label: "失败", className: "bg-red-50 text-red-700 border-red-200" },
 }
@@ -63,6 +68,8 @@ export default function MaterialsPage() {
 	const [uploading, setUploading] = useState(false)
 	const [parsingStatus, setParsingStatus] = useState<{ materialId: string; progress: string } | null>(null)
 	const [drag, setDrag] = useState(false)
+	const [search, setSearch] = useState("")
+	const [statusFilter, setStatusFilter] = useState<string>("all")
 	const fileRef = useRef<HTMLInputElement>(null)
 
 	const load = useCallback(() => {
@@ -78,11 +85,11 @@ export default function MaterialsPage() {
 	}, [load])
 
 	const pollParseStatus = async (materialId: string) => {
-		const maxAttempts = 150 // 最多轮询 150 次（约 5 分钟，与后端 maxDuration=300 对齐）
+		const maxAttempts = 150
 		let attempts = 0
 
 		while (attempts < maxAttempts) {
-			await new Promise((r) => setTimeout(r, 2000)) // 每 2 秒轮询一次
+			await new Promise((r) => setTimeout(r, 2000))
 			attempts++
 
 			try {
@@ -103,7 +110,7 @@ export default function MaterialsPage() {
 					setParsingStatus({ materialId, progress: progressMsg })
 				}
 			} catch {
-				// 忽略单次轮询错误，继续重试
+				// 忽略单次轮询错误
 			}
 		}
 
@@ -120,7 +127,6 @@ export default function MaterialsPage() {
 			const res = await apiPost<{ material: { id: string }; externalParse?: boolean }>("/api/materials", fd)
 			const materialId = res.material.id
 
-			// 如果启用了外部解析，直接跳转到详情页，不触发内部解析
 			if (res.externalParse) {
 				toast.success("上传成功，文件将自动解析，请稍后查看")
 				router.push(`/admin/materials/${materialId}`)
@@ -130,7 +136,6 @@ export default function MaterialsPage() {
 			const isPDF = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")
 
 			if (isPDF) {
-				// PDF 文件使用前端解析，避免后端超时
 				toast.success("上传成功，正在解析 PDF 内容...")
 				setParsingStatus({ materialId, progress: "开始解析 PDF..." })
 
@@ -151,7 +156,6 @@ export default function MaterialsPage() {
 
 					setParsingStatus({ materialId, progress: "保存解析结果..." })
 
-					// 调用后端 API 保存解析结果
 					await apiPost(`/api/materials/${materialId}/save-parse`, {
 						text: result.text,
 						pageCount: result.pageCount,
@@ -166,7 +170,6 @@ export default function MaterialsPage() {
 				} catch (parseErr) {
 					const errMsg = parseErr instanceof Error ? parseErr.message : String(parseErr)
 					toast.error(`PDF 解析失败：${errMsg}`)
-					// 直接标记为解析失败，不调用后端parse API
 					await apiPatch(`/api/materials/${materialId}`, {
 						status: "failed",
 						error_message: `PDF解析失败：${errMsg}`,
@@ -174,14 +177,11 @@ export default function MaterialsPage() {
 					load()
 				}
 			} else {
-				// 其他格式使用后端解析
 				toast.success("上传成功，正在解析文件内容...")
 				setParsingStatus({ materialId, progress: "开始解析..." })
 
-				// 触发解析
 				apiPost(`/api/materials/${materialId}/parse`, {}).catch(() => {})
 
-				// 轮询解析状态
 				const success = await pollParseStatus(materialId)
 
 				if (success) {
@@ -190,7 +190,7 @@ export default function MaterialsPage() {
 						router.push(`/admin/materials/${materialId}`)
 					}, 1000)
 				} else {
-					load() // 刷新列表
+					load()
 				}
 			}
 		} catch (e) {
@@ -212,14 +212,45 @@ export default function MaterialsPage() {
 		}
 	}
 
+	const filtered = items.filter((m) => {
+		if (statusFilter !== "all" && m.status !== statusFilter) return false
+		if (search && !m.title.toLowerCase().includes(search.toLowerCase()) && !m.file_name.toLowerCase().includes(search.toLowerCase())) return false
+		return true
+	})
+
+	const formatFileSize = (bytes: number) => {
+		if (bytes < 1024) return `${bytes} B`
+		if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+		return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+	}
+
+	const getFileIcon = (type: string) => {
+		const iconClass = "w-5 h-5"
+		switch (type.toLowerCase()) {
+			case "pdf":
+				return <FileText className={`${iconClass} text-red-500`} />
+			case "docx":
+			case "doc":
+				return <FileText className={`${iconClass} text-blue-600`} />
+			case "xlsx":
+			case "xls":
+				return <FileText className={`${iconClass} text-green-600`} />
+			case "pptx":
+			case "ppt":
+				return <FileText className={`${iconClass} text-orange-500`} />
+			default:
+				return <FileText className={`${iconClass} text-gray-500`} />
+		}
+	}
+
 	return (
 		<div className="space-y-6">
 			<PageHeader title="培训材料" description="支持 docx / xlsx / pdf / pptx / md，上传后 AI 自动解析并可生成提纲与题库" />
 
 			{/* 解析进度提示 */}
 			{parsingStatus && (
-				<div className="brand-card rounded-xl border border-blue-200 bg-blue-50/50 p-4 flex items-center gap-3">
-					<Loader2 className="w-5 h-5 text-[#1677ff] animate-spin shrink-0" />
+				<div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200 p-4 flex items-center gap-3 shadow-sm">
+					<Loader2 className="w-5 h-5 text-blue-600 animate-spin shrink-0" />
 					<div className="flex-1">
 						<div className="text-sm font-medium text-blue-900">正在解析文件</div>
 						<div className="text-xs text-blue-700 mt-0.5">{parsingStatus.progress}</div>
@@ -228,11 +259,11 @@ export default function MaterialsPage() {
 				</div>
 			)}
 
-			{/* 上传区（拖拽 + 点击） */}
+			{/* 上传区 */}
 			<div
 				className={[
-					"brand-card rounded-xl border-2 border-dashed transition-all",
-					drag ? "border-[#1677ff] bg-[#eff6ff]" : "border-gray-200 hover:border-[#4096ff] hover:bg-blue-50/30",
+					"bg-white rounded-xl border-2 border-dashed transition-all shadow-sm",
+					drag ? "border-blue-500 bg-blue-50/50 shadow-md" : "border-gray-200 hover:border-blue-400 hover:bg-blue-50/30",
 				].join(" ")}
 				onDragEnter={(e) => {
 					e.preventDefault()
@@ -247,12 +278,12 @@ export default function MaterialsPage() {
 					if (f) onUpload(f)
 				}}
 			>
-				<div className="flex items-center gap-5 px-6 py-6">
-					<div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#1677ff] to-[#0958d9] text-white flex items-center justify-center shadow-md">
-						{uploading ? <Loader2 className="w-6 h-6 animate-spin" /> : <CloudUpload className="w-7 h-7" />}
+				<div className="flex items-center gap-5 px-6 py-5">
+					<div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-blue-700 text-white flex items-center justify-center shadow-lg shadow-blue-500/30">
+						{uploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <CloudUpload className="w-6 h-6" />}
 					</div>
 					<div className="flex-1">
-						<div className="text-[15px] font-medium text-gray-800">拖拽文件到此处或点击上传</div>
+						<div className="text-sm font-semibold text-gray-800">拖拽文件到此处或点击上传</div>
 						<div className="text-xs text-gray-500 mt-0.5">
 							支持 .docx / .xlsx / .pdf / .pptx / .md · 单文件建议不超过 20 MB
 						</div>
@@ -270,7 +301,7 @@ export default function MaterialsPage() {
 					<Button
 						onClick={() => fileRef.current?.click()}
 						disabled={uploading}
-						className="bg-[#1677ff] hover:bg-[#0958d9] shadow-sm"
+						className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/40 transition-all"
 					>
 						{uploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
 						选择文件
@@ -278,54 +309,130 @@ export default function MaterialsPage() {
 				</div>
 			</div>
 
-			{loading ? (
-				<div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-					{Array.from({ length: 3 }).map((_, i) => (
-						<div key={i} className="skeleton h-40 rounded-xl" />
+			{/* 筛选区 */}
+			<div className="bg-white rounded-xl p-4 flex flex-wrap items-center gap-3 shadow-sm border border-gray-100">
+				<div className="flex items-center gap-2 text-gray-500 text-sm font-medium">
+					<Filter className="w-4 h-4" /> 筛选
+				</div>
+				<div className="relative w-64">
+					<Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+					<Input
+						value={search}
+						onChange={(e) => setSearch(e.target.value)}
+						placeholder="搜索材料名称或文件名"
+						className="pl-9 h-9 bg-gray-50 border-gray-200 focus:bg-white"
+					/>
+				</div>
+				<div className="flex items-center gap-1 rounded-lg bg-gray-100 p-1">
+					{(["all", "uploaded", "parsed", "failed"] as const).map((s) => (
+						<button
+							key={s}
+							onClick={() => setStatusFilter(s)}
+							className={[
+								"px-3 h-7 rounded-md text-xs font-medium transition-all",
+								statusFilter === s
+									? "bg-white text-blue-600 shadow-sm"
+									: "text-gray-500 hover:text-gray-800",
+							].join(" ")}
+						>
+							{s === "all" ? "全部" : STATUS_MAP[s]?.label || s}
+						</button>
 					))}
 				</div>
-			) : items.length === 0 ? (
-				<div className="brand-card rounded-xl py-16 flex flex-col items-center">
-					<div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center mb-3">
-						<Inbox className="w-7 h-7 text-[#1677ff]" />
+				<div className="ml-auto text-xs text-gray-400">共 {filtered.length} 条记录</div>
+			</div>
+
+			{/* 表格 */}
+			{loading ? (
+				<div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+					<div className="p-8 space-y-4">
+						{Array.from({ length: 5 }).map((_, i) => (
+							<div key={i} className="skeleton h-12 rounded-lg" />
+						))}
 					</div>
-					<div className="text-[15px] font-medium text-gray-800">还没有上传培训材料</div>
+				</div>
+			) : filtered.length === 0 ? (
+				<div className="bg-white rounded-xl py-16 flex flex-col items-center shadow-sm border border-gray-100">
+					<div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center mb-3 shadow-inner">
+						<Inbox className="w-7 h-7 text-blue-500" />
+					</div>
+					<div className="text-base font-semibold text-gray-800">还没有上传培训材料</div>
 					<div className="text-sm text-gray-500 mt-1">拖拽或点击上方按钮上传第一份材料</div>
 				</div>
 			) : (
-				<div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-					{items.map((m) => {
-						const st = STATUS_MAP[m.status] || STATUS_MAP.uploaded
-						return (
-							<Card key={m.id} className="brand-card border-0 hover-lift">
-								<CardContent className="p-5">
-									<div className="flex items-start gap-3">
-										<div className="w-11 h-11 shrink-0 rounded-xl bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center">
-											<FileText className="w-5 h-5 text-[#1677ff]" />
+				<div className="bg-white rounded-xl shadow-lg shadow-gray-200/50 border border-gray-100 overflow-hidden">
+					{/* 表头 */}
+					<div className="bg-gradient-to-r from-slate-50 to-gray-50 border-b border-gray-200">
+						<div className="grid grid-cols-[1fr_120px_100px_100px_120px_180px] gap-4 px-6 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wider">
+							<div>材料名称</div>
+							<div>文件类型</div>
+							<div>大小</div>
+							<div>状态</div>
+							<div>上传时间</div>
+							<div className="text-right">操作</div>
+						</div>
+					</div>
+
+					{/* 表体 */}
+					<div className="divide-y divide-gray-100">
+						{filtered.map((m) => {
+							const st = STATUS_MAP[m.status] || STATUS_MAP.uploaded
+							return (
+								<div
+									key={m.id}
+									className="grid grid-cols-[1fr_120px_100px_100px_120px_180px] gap-4 px-6 py-4 items-center hover:bg-gradient-to-r hover:from-blue-50/50 hover:to-transparent transition-all duration-200 group"
+								>
+									{/* 名称 */}
+									<div className="flex items-center gap-3 min-w-0">
+										<div className="w-10 h-10 rounded-lg bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center shrink-0 shadow-sm border border-gray-100">
+											{getFileIcon(m.file_type)}
 										</div>
-										<div className="min-w-0 flex-1">
-											<div className="flex items-start justify-between gap-2">
-												<div className="text-[14px] font-medium text-gray-900 line-clamp-2 leading-snug">{m.title}</div>
-												<Badge variant="outline" className={`${st.className} shrink-0 text-[11px]`}>
-													{st.label}
-												</Badge>
+										<div className="min-w-0">
+											<div className="text-sm font-medium text-gray-900 truncate group-hover:text-blue-600 transition-colors">
+												{m.title}
 											</div>
-											<div className="text-[11px] text-gray-500 mt-1.5 truncate">{m.file_name}</div>
-											<div className="text-[11px] text-gray-400 mt-0.5">
-												{(m.file_size / 1024).toFixed(1)} KB · {fmtDate(m.created_at)}
-											</div>
+											<div className="text-xs text-gray-500 truncate mt-0.5">{m.file_name}</div>
 										</div>
 									</div>
 
-									{(m.status === "failed" || m.status === "pending") && (
-										<div className="mt-3 flex items-center gap-2">
+									{/* 类型 */}
+									<div className="text-sm text-gray-600 uppercase font-medium">
+										{m.file_type}
+									</div>
+
+									{/* 大小 */}
+									<div className="text-sm text-gray-600 flex items-center gap-1.5">
+										<HardDrive className="w-3.5 h-3.5 text-gray-400" />
+										{formatFileSize(m.file_size)}
+									</div>
+
+									{/* 状态 */}
+									<div>
+										<Badge className={`${st.className} text-xs font-medium`}>
+											{st.label}
+										</Badge>
+										{m.status === "failed" && m.error_message && (
+											<div className="text-xs text-red-500 mt-1 truncate max-w-[100px]" title={m.error_message}>
+												{m.error_message}
+											</div>
+										)}
+									</div>
+
+									{/* 时间 */}
+									<div className="text-sm text-gray-500 flex items-center gap-1.5">
+										<Calendar className="w-3.5 h-3.5 text-gray-400" />
+										{fmtDate(m.created_at)}
+									</div>
+
+									{/* 操作 */}
+									<div className="flex items-center justify-end gap-2">
+										{(m.status === "failed" || m.status === "pending") && (
 											<Button
 												size="sm"
 												variant="outline"
-												className="text-[#1677ff] border-[#1677ff]/30 hover:bg-[#1677ff]/5"
+												className="h-8 px-3 text-blue-600 border-blue-200 hover:bg-blue-50 hover:border-blue-300 shadow-sm"
 												onClick={async () => {
 													try {
-														// 重置状态为 pending，等待外部解析
 														await apiPatch(`/api/materials/${m.id}`, {
 															status: "pending",
 															error_message: null,
@@ -338,33 +445,37 @@ export default function MaterialsPage() {
 												}}
 											>
 												<RefreshCw className="w-3.5 h-3.5 mr-1" />
-												重新解析
+												重试
 											</Button>
-											{m.status === "failed" && m.error_message && (
-												<span className="text-[11px] text-red-500 truncate max-w-[200px]">
-													{m.error_message}
-												</span>
-											)}
-										</div>
-									)}
-
-									<div className="mt-4 flex items-center gap-2">
-										<Link href={`/admin/materials/${m.id}`} className="flex-1">
-											<Button size="sm" className="w-full bg-[#1677ff] hover:bg-[#0958d9]">
-												<Sparkles className="w-3.5 h-3.5 mr-1" />
-												查看/AI 生成
-												<ArrowRight className="w-3.5 h-3.5 ml-auto" />
+										)}
+										<Link href={`/admin/materials/${m.id}`}>
+											<Button
+												size="sm"
+												className="h-8 px-4 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-md shadow-blue-500/25 hover:shadow-lg hover:shadow-blue-500/30 transition-all hover:-translate-y-0.5"
+											>
+												<Eye className="w-3.5 h-3.5 mr-1" />
+												查看
+												<ArrowRight className="w-3.5 h-3.5 ml-1" />
 											</Button>
 										</Link>
 										<Link href={`/admin/banks?material=${m.id}`}>
-											<Button size="sm" variant="outline" title="查看关联题库">
-												<ListTree className="w-3.5 h-3.5" />
+											<Button
+												size="sm"
+												variant="outline"
+												className="h-8 w-8 p-0 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600"
+												title="查看关联题库"
+											>
+												<ListTree className="w-4 h-4" />
 											</Button>
 										</Link>
 										<AlertDialog>
 											<AlertDialogTrigger asChild>
-												<Button size="sm" variant="outline" className="text-red-500 hover:text-red-600 hover:border-red-200">
-													<Trash2 className="w-3.5 h-3.5" />
+												<Button
+													size="sm"
+													variant="outline"
+													className="h-8 w-8 p-0 text-red-500 border-red-200 hover:bg-red-50 hover:border-red-300 hover:text-red-600"
+												>
+													<Trash2 className="w-4 h-4" />
 												</Button>
 											</AlertDialogTrigger>
 											<AlertDialogContent>
@@ -374,17 +485,17 @@ export default function MaterialsPage() {
 												</AlertDialogHeader>
 												<AlertDialogFooter>
 													<AlertDialogCancel>取消</AlertDialogCancel>
-													<AlertDialogAction onClick={() => onDelete(m.id)} className="bg-red-500 hover:bg-red-600">
+													<AlertDialogAction onClick={() => onDelete(m.id)} className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700">
 														确认删除
 													</AlertDialogAction>
 												</AlertDialogFooter>
 											</AlertDialogContent>
 										</AlertDialog>
 									</div>
-								</CardContent>
-							</Card>
-						)
-					})}
+								</div>
+							)
+						})}
+					</div>
 				</div>
 			)}
 		</div>
