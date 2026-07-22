@@ -19,7 +19,7 @@ function getKey(): Uint8Array {
   return _key
 }
 
-// 公开路径：登录页、登录接口、扫码考试相关、评价、静态资源
+// 公开路径：登录页、登录接口、扫码考试相关、评价、静态资源、外部解析API
 const PUBLIC_API_PATTERNS = [
 	/^\/api\/warmup$/,
 	/^\/api\/auth\/login$/,
@@ -28,6 +28,8 @@ const PUBLIC_API_PATTERNS = [
 	/^\/api\/records\/[^/]+\/submit$/,
 	/^\/api\/records\/[^/]+\/evaluate$/,
 	/^\/api\/records\/[^/]+$/, // 允许考试端读取自己的记录（GET/PATCH 切屏上报）
+	/^\/api\/parse\/queue$/, // 外部解析队列API（使用X-Parse-Token认证）
+	/^\/api\/materials\/[^/]+\/parse-result$/, // 外部解析结果回写API（使用X-Parse-Token认证）
 ]
 
 async function verify(token: string) {

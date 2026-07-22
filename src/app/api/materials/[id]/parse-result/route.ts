@@ -5,13 +5,18 @@ export const runtime = "nodejs"
 
 // API Token 认证中间件
 function verifyParseToken(request: NextRequest): boolean {
-  const token = request.headers.get("X-Parse-Token")
+  const token = request.headers.get("x-parse-token")
   const expectedToken = process.env.PARSE_API_TOKEN
+  
   if (!expectedToken) {
-    console.error("PARSE_API_TOKEN 环境变量未配置")
+    console.error("[Parse Result] PARSE_API_TOKEN 环境变量未配置")
     return false
   }
-  return token === expectedToken
+  if (!token) {
+    console.error("[Parse Result] X-Parse-Token 请求头缺失")
+    return false
+  }
+  return token.trim() === expectedToken.trim()
 }
 
 /**

@@ -9,6 +9,15 @@ DEPLOY_RUN_PORT="${DEPLOY_RUN_PORT:-$PORT}"
 
 start_service() {
     cd "${COZE_WORKSPACE_PATH}"
+    
+    # Load environment variables from .env.local if it exists
+    if [ -f .env.local ]; then
+        echo "Loading environment variables from .env.local"
+        set -a
+        source .env.local
+        set +a
+    fi
+    
     echo "Starting HTTP service on port ${DEPLOY_RUN_PORT} for deploy..."
     PORT=${DEPLOY_RUN_PORT} node dist/server.js
 }

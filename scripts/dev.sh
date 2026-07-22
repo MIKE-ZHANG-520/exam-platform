@@ -9,6 +9,14 @@ DEPLOY_RUN_PORT="${DEPLOY_RUN_PORT:-${PORT}}"
 
 cd "${COZE_WORKSPACE_PATH}"
 
+# Load environment variables from .env.local if it exists
+if [ -f .env.local ]; then
+    echo "Loading environment variables from .env.local"
+    set -a
+    source .env.local
+    set +a
+fi
+
 kill_port_if_listening() {
     local pids
     pids=$(ss -H -lntp 2>/dev/null | awk -v port="${DEPLOY_RUN_PORT}" '$4 ~ ":"port"$"' | grep -o 'pid=[0-9]*' | cut -d= -f2 | paste -sd' ' - || true)
