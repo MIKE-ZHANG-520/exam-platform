@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/lib/db"
 const supabase = db()
-import { hashPassword, setSessionCookie, signSession, verifyPassword } from "@/lib/auth"
+import { hashPassword, verifyPassword, setSessionCookie, signSession } from "@/lib/auth"
 
 export const runtime = "nodejs"
 
@@ -27,8 +27,8 @@ async function ensureDefaultAdmin() {
 			active: true,
 		})
 	}
-	// 确保 trainer 用户存在且角色正确
-	const { data: trainerUser } = await supabase.from("users").select("id, role").eq("username", "trainer").maybeSingle()
+	// 确保 trainer 用户存在且角色正确、密码正确
+	const { data: trainerUser } = await supabase.from("users").select("id, role, password_hash, department").eq("username", "trainer").maybeSingle()
 	if (!trainerUser) {
 		// trainer 不存在，创建它
 		await supabase.from("users").insert({
@@ -40,9 +40,18 @@ async function ensureDefaultAdmin() {
 			avatar_color: "#f97316",
 			active: true,
 		})
-	} else if (trainerUser.role !== "trainer") {
-		// trainer 存在但角色不对，更新角色
-		await supabase.from("users").update({ role: "trainer", department: "培训部" }).eq("username", "trainer")
+	} else {
+		// trainer 存在，确保角色和密码正确
+		const needsUpdate: Record<string, string> = {}
+		if (trainerUser.role !== "trainer") needsUpdate.role = "trainer"
+		if (trainerUser.department !== "培训部") needsUpdate.department = "培训部"
+		// 验证密码是否正确，不正确则更新
+		if (!verifyPassword("trainer123", trainerUser.password_hash)) {
+			needsUpdate.password_hash = hashPassword("trainer123")
+		}
+		if (Object.keys(needsUpdate).length > 0) {
+			await supabase.from("users").update(needsUpdate).eq("username", "trainer")
+		}
 	}
 }
 
