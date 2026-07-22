@@ -4,7 +4,7 @@ import { SignJWT, jwtVerify } from "jose"
 import { scryptSync, randomBytes, timingSafeEqual, createHash } from "crypto"
 import { loadEnv } from "@/storage/database/supabase-client"
 
-export type UserRole = "admin" | "user"
+export type UserRole = "admin" | "trainer" | "user"
 
 export interface SessionUser {
 	id: string
@@ -95,6 +95,16 @@ export async function requireAdmin(): Promise<SessionUser> {
 	const s = await requireSession()
 	if (s.role !== "admin") throw new AuthError("FORBIDDEN", 403)
 	return s
+}
+
+// 检查是否是 trainer 或 admin（培训业务权限）
+export function isTrainerOrAbove(role: UserRole): boolean {
+	return role === "admin" || role === "trainer"
+}
+
+// 检查是否是 admin（系统管理权限）
+export function isAdmin(role: UserRole): boolean {
+	return role === "admin"
 }
 
 export class AuthError extends Error {

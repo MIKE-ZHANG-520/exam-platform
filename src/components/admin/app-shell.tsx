@@ -52,7 +52,7 @@ interface Me {
 	id: string
 	username: string
 	real_name: string
-	role: "admin" | "user"
+	role: "admin" | "trainer" | "user"
 	department?: string | null
 	avatar_color?: string | null
 }
@@ -61,7 +61,8 @@ interface NavItem {
 	href: string
 	label: string
 	icon: React.ComponentType<{ className?: string }>
-	adminOnly?: boolean
+	adminOnly?: boolean // 仅 admin 可见
+	trainerHidden?: boolean // trainer 不可见（user 和 trainer 都看不到）
 	group?: string
 }
 
@@ -173,7 +174,12 @@ export function AppShell({ children, user }: { children: React.ReactNode; user?:
 		}
 	}
 
-	const visibleNav = NAV.filter((n) => !n.adminOnly || me?.role === "admin")
+	const visibleNav = NAV.filter((n) => {
+		if (!n.adminOnly) return true // 所有用户可见
+		if (me?.role === "admin") return true // admin 可见所有
+		if (me?.role === "trainer" && !["/admin/users", "/admin/projects", "/admin/teams", "/admin/workers"].includes(n.href)) return true // trainer 可见培训业务
+		return false
+	})
 	const breadcrumbs = getBreadcrumbs(pathname)
 	const [mobileNavOpen, setMobileNavOpen] = useState(false)
 	useEffect(() => { setMobileNavOpen(false) }, [pathname])
