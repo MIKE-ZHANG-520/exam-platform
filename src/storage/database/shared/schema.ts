@@ -403,3 +403,28 @@ export const special_trainings = pgTable(
 		index("special_trainings_training_date_idx").on(table.training_date),
 	]
 );
+
+// 后台任务队列（统一异步任务管理）
+export const background_tasks = pgTable(
+	"background_tasks",
+	{
+		id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+		type: varchar("type", { length: 30 }).notNull(), // parse_file, generate_questions, generate_outline, import_roster
+		status: varchar("status", { length: 20 }).notNull().default("pending"), // pending, processing, completed, failed
+		resource_type: varchar("resource_type", { length: 30 }).notNull(), // materials, question_banks, outlines, workers
+		resource_id: varchar("resource_id", { length: 36 }).notNull(),
+		payload: jsonb("payload"), // task parameters
+		result: jsonb("result"), // task result
+		error_message: text("error_message"),
+		progress: jsonb("progress"), // { current, total, message }
+		created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+		updated_at: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+		started_at: timestamp("started_at", { withTimezone: true }),
+		completed_at: timestamp("completed_at", { withTimezone: true }),
+	},
+	(table) => [
+		index("background_tasks_status_idx").on(table.status),
+		index("background_tasks_type_idx").on(table.type),
+		index("background_tasks_resource_idx").on(table.resource_type, table.resource_id),
+	]
+);

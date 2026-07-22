@@ -30,6 +30,8 @@ const PUBLIC_API_PATTERNS = [
 	/^\/api\/records\/[^/]+$/, // 允许考试端读取自己的记录（GET/PATCH 切屏上报）
 	/^\/api\/parse\/queue$/, // 外部解析队列API（使用X-Parse-Token认证）
 	/^\/api\/materials\/[^/]+\/parse-result$/, // 外部解析结果回写API（使用X-Parse-Token认证）
+	/^\/api\/worker\/queue$/, // 统一Worker队列API（使用X-Worker-Token认证）
+	/^\/api\/worker\/tasks\/[^/]+\/result$/, // 统一Worker结果回写API（使用X-Worker-Token认证）
 ]
 
 async function verify(token: string) {

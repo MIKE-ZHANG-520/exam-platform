@@ -173,57 +173,60 @@ function OutlineCard({
 	const generate = async () => {
 		setGenerating(true)
 		setGenStage("准备中")
-		const t0 = Date.now()
 		try {
-			// 预热 FaaS
-			try {
-				const ctrl = new AbortController()
-				const to = setTimeout(() => ctrl.abort(), 8000)
-				await fetch("/api/warmup", { method: "POST", signal: ctrl.signal }).finally(() =>
-					clearTimeout(to),
-				)
-			} catch (e) {
-				console.warn("[outline] warmup 失败（不影响主流程）:", e)
+			// 提交任务到后台队列
+			const submitRes = await apiPost<{ success: boolean; task_id: string; message: string }>(
+				`/api/materials/${materialId}/generate-outline`,
+				{ audience, note: note.trim() },
+			)
+
+			if (!submitRes.success || !submitRes.task_id) {
+				throw new Error("提交任务失败")
 			}
 
-			// Step 1: start
-			setGenStage("已提交 · 等待 AI 思考")
-			const startRes = await apiPost<{ chatId: string; conversationId: string }>(
-				`/api/materials/${materialId}/outline`,
-				{ action: "start", audience, note: note.trim() },
-			)
-			console.warn("[outline] start", startRes)
+			const taskId = submitRes.task_id
+			setGenStage("已提交 · 等待 Worker 处理")
+			toast.info("提纲生成任务已提交，等待 Worker 处理...")
 
-			// Step 2: poll（最长 120s）
-			const pollMax = 60
-			const pollInterval = 2000
-			let ready = false
-			for (let i = 0; i < pollMax; i++) {
+			// 轮询任务状态
+			const pollInterval = 3000
+			const maxPollTime = 5 * 60 * 1000 // 5分钟
+			const startTime = Date.now()
+
+			while (Date.now() - startTime < maxPollTime) {
 				await new Promise((r) => setTimeout(r, pollInterval))
-				const p = await apiPost<{ status: string; ready: boolean }>(
-					`/api/materials/${materialId}/outline`,
-					{ action: "poll", chatId: startRes.chatId, conversationId: startRes.conversationId },
-				)
-				setGenStage(`AI 生成中 · ${Math.round(((Date.now() - t0) / 1000))}s`)
-				if (p.ready) {
-					ready = true
-					if (p.status === "failed") throw new Error("Bot 生成失败，请重试")
+
+				const taskRes = await apiGet<{
+					success: boolean
+					task: {
+						status: string
+						progress?: { message?: string }
+						error_message?: string
+					}
+				}>(`/api/tasks/${taskId}`)
+
+				const task = taskRes.task
+
+				if (task.progress?.message) {
+					setGenStage(task.progress.message)
+				} else {
+					setGenStage(`处理中 · ${Math.round((Date.now() - startTime) / 1000)}s`)
+				}
+
+				if (task.status === "completed") {
+					toast.success(`${label}提纲已生成并自动发布`)
+					onRefresh()
 					break
 				}
-			}
-			if (!ready) throw new Error("生成超时（120s 内未完成），请重试")
 
-			// Step 3: finalize
-			setGenStage("落库中")
-			await apiPost(`/api/materials/${materialId}/outline`, {
-				action: "finalize",
-				chatId: startRes.chatId,
-				conversationId: startRes.conversationId,
-				audience,
-				note: note.trim(),
-			})
-			toast.success(`${label}提纲已生成并自动发布`)
-			onRefresh()
+				if (task.status === "failed") {
+					throw new Error(task.error_message || "提纲生成失败")
+				}
+			}
+
+			if (Date.now() - startTime >= maxPollTime) {
+				toast.warning("任务超时，请刷新页面查看结果")
+			}
 		} catch (e) {
 			console.error("[outline] generate failed:", e)
 			toast.error((e as Error).message)
@@ -476,133 +479,64 @@ export default function MaterialDetailPage() {
 		setGenBankTotal(0)
 		const timer = setInterval(() => setGenBankElapsed((s) => s + 1), 1000)
 
-		// 三阶段调用：start → poll(N次) → finalize
-		// 每次交互 <5s，避免网关超时
-		const TOTAL = 8
-		let bankId: string | null = null
-		let totalGenerated = 0
-		const failedBatches: number[] = []
-
-		// 单次 fetch，带 30s 超时（覆盖冷启动 + Bot 网络往返）
-		const doFetch = async (body: unknown, timeoutMs: number): Promise<Record<string, unknown>> => {
-			const ctrl = new AbortController()
-			const tid = setTimeout(() => ctrl.abort(), timeoutMs)
-			try {
-				const res = await fetch(`/api/materials/${id}/questions`, {
-					method: "POST",
-					headers: { "content-type": "application/json" },
-					body: JSON.stringify(body),
-					signal: ctrl.signal,
-				})
-				const data = (await res.json().catch(() => ({}))) as Record<string, unknown>
-				if (!res.ok) {
-					const err = typeof data.error === "string" ? data.error : `HTTP ${res.status}`
-					throw new Error(err)
-				}
-				return data
-			} finally {
-				clearTimeout(tid)
-			}
-		}
-
-		// 带指数退避的重试（3 次，间隔 2s/4s/8s）——兜住 FaaS 冷启动 + 瞬时网络抖动
-		const postJson = async (body: unknown, timeoutMs = 30_000): Promise<Record<string, unknown>> => {
-			let lastErr: unknown = null
-			for (let attempt = 0; attempt < 3; attempt++) {
-				try {
-					return await doFetch(body, timeoutMs)
-				} catch (e) {
-					lastErr = e
-					const msg = e instanceof Error ? e.message : String(e)
-					console.warn(`[questions] fetch attempt ${attempt + 1}/3 failed:`, msg)
-					if (attempt < 2) {
-						await new Promise((r) => setTimeout(r, 2000 * Math.pow(2, attempt)))
-					}
-				}
-			}
-			throw lastErr instanceof Error ? lastErr : new Error(String(lastErr))
-		}
-
-		// 预热：先发一个 warmup 请求让 FaaS 冷启动完毕
 		try {
-			const ctrl = new AbortController()
-			const tid = setTimeout(() => ctrl.abort(), 30_000)
-			await fetch("/api/warmup", { method: "POST", signal: ctrl.signal }).finally(() =>
-				clearTimeout(tid),
+			// 提交任务到后台队列
+			const submitRes = await apiPost<{ success: boolean; task_id: string; bank_id: string; message: string }>(
+				`/api/materials/${id}/generate-questions`,
+				{ difficulty, count: 40, note },
 			)
-		} catch (e) {
-			console.warn("[questions] warmup 失败（不影响主流程）:", e)
-		}
 
-		try {
-			for (let i = 0; i < TOTAL; i++) {
-				setGenBankBatch(i + 1)
-				try {
-					// 1) start：创建 Bot 对话，立即返回 chatId
-					const startResp = await postJson({
-						action: "start",
-						difficulty,
-						batchIndex: i,
-						bankId,
-						note: i === 0 ? note : undefined,
-					})
-					const chatId = startResp.chatId as string
-					const conversationId = startResp.conversationId as string
-					bankId = (startResp.bankId as string) || bankId
+			if (!submitRes.success || !submitRes.task_id) {
+				throw new Error("提交任务失败")
+			}
 
-					// 2) poll：每 2 秒 poll 一次，最多 60 次（120s）
-					let ready = false
-					for (let p = 0; p < 60; p++) {
-						await new Promise((r) => setTimeout(r, 2000))
-						const pollResp = await postJson({
-							action: "poll",
-							chatId,
-							conversationId,
-						})
-						if (pollResp.ready === true) {
-							ready = true
-							break
-						}
-					}
-					if (!ready) {
-						failedBatches.push(i + 1)
-						console.error(`第 ${i + 1} 批 poll 超时`)
-						continue
-					}
+			const taskId = submitRes.task_id
+			toast.info("题库生成任务已提交，等待 Worker 处理...")
 
-					// 3) finalize：拉取回复、解析、入库
-					const finalResp = await postJson({
-						action: "finalize",
-						chatId,
-						conversationId,
-						bankId,
-						batchIndex: i,
-						difficulty,
-					})
-					if (typeof finalResp.totalGenerated === "number") {
-						totalGenerated = finalResp.totalGenerated
-						setGenBankTotal(totalGenerated)
+			// 轮询任务状态
+			const pollInterval = 3000 // 3秒
+			const maxPollTime = 10 * 60 * 1000 // 10分钟
+			const startTime = Date.now()
+
+			while (Date.now() - startTime < maxPollTime) {
+				await new Promise((r) => setTimeout(r, pollInterval))
+
+				const taskRes = await apiGet<{
+					success: boolean
+					task: {
+						status: string
+						progress?: { current?: number; total?: number; message?: string }
+						error_message?: string
+						result?: { total_generated?: number; questions?: unknown[] }
 					}
-					if (finalResp.error) {
-						failedBatches.push(i + 1)
-						console.warn(`第 ${i + 1} 批解析出错:`, finalResp.error)
-					}
-				} catch (batchErr) {
-					failedBatches.push(i + 1)
-					console.error(`第 ${i + 1} 批失败:`, batchErr)
+				}>(`/api/tasks/${taskId}`)
+
+				const task = taskRes.task
+
+				// 更新进度显示
+				if (task.progress) {
+					setGenBankBatch(task.progress.current || 0)
+					setGenBankTotal(task.progress.total || 40)
 				}
+
+				if (task.status === "completed") {
+					const totalGenerated = task.result?.total_generated || task.result?.questions?.length || 0
+					setGenBankTotal(totalGenerated)
+					toast.success(`${difficulty === "easy" ? "简易" : "中等"}题库已生成 ${totalGenerated} 题`)
+					load()
+					break
+				}
+
+				if (task.status === "failed") {
+					throw new Error(task.error_message || "题库生成失败")
+				}
+
+				// 继续轮询
 			}
 
-			if (totalGenerated === 0) {
-				toast.error("题库生成失败，所有批次均未产出题目，请重试")
-			} else if (failedBatches.length > 0) {
-				toast.warning(
-					`${difficulty === "easy" ? "简易" : "中等"}题库已生成 ${totalGenerated} 题（第 ${failedBatches.join("、")} 批失败）`,
-				)
-			} else {
-				toast.success(`${difficulty === "easy" ? "简易" : "中等"}题库已生成 ${totalGenerated} 题并自动发布`)
+			if (Date.now() - startTime >= maxPollTime) {
+				toast.warning("任务超时，请刷新页面查看结果")
 			}
-			load()
 		} catch (e) {
 			toast.error((e as Error).message)
 		} finally {

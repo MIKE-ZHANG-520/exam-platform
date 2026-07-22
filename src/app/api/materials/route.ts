@@ -138,8 +138,8 @@ export async function POST(request: NextRequest) {
     // 标题优先用用户填的，否则用文件名去掉扩展名
     const finalTitle = title || deriveTitleFromFileName(file.name);
 
-    // 检查是否启用外部解析（通过环境变量 PARSE_API_TOKEN 控制）
-    const useExternalParse = !!process.env.PARSE_API_TOKEN;
+    // 检查是否启用外部解析（通过环境变量 PARSE_API_TOKEN 或 WORKER_API_TOKEN 控制）
+    const useExternalParse = !!(process.env.PARSE_API_TOKEN || process.env.WORKER_API_TOKEN);
     const initialStatus = useExternalParse ? "pending" : "uploaded";
     const parseSource = useExternalParse ? "external" : "internal";
 
@@ -166,6 +166,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
     
+    // 如果启用外部解析，创建后台任务
+    if (useExternalParse && data?.id) {
+      try {
+        const { createTask } = await import("@/lib/task-queue");
+        await createTask({
+          type: "parse_file",
+          resource_type: "materials",
+          resource_id: data.id,
+          payload: {
+            file_key: key,
+            file_type: fileType,
+            file_name: file.name,
+          },
+        });
+        console.log(`[Upload] 解析任务已创建: materialId=${data.id}`);
+      } catch (taskErr) {
+        console.error(`[Upload] 创建解析任务失败:`, taskErr);
+        // 任务创建失败不影响材料上传
+      }
+    }
+
     console.log(`[Upload] 材料创建成功: id=${data.id}, key=${key}, externalParse=${useExternalParse}`);
     return NextResponse.json({ 
       material: data,
