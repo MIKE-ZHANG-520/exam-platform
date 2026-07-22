@@ -138,6 +138,11 @@ export async function POST(request: NextRequest) {
     // 标题优先用用户填的，否则用文件名去掉扩展名
     const finalTitle = title || deriveTitleFromFileName(file.name);
 
+    // 检查是否启用外部解析（通过环境变量 PARSE_API_TOKEN 控制）
+    const useExternalParse = !!process.env.PARSE_API_TOKEN;
+    const initialStatus = useExternalParse ? "pending" : "uploaded";
+    const parseSource = useExternalParse ? "external" : "internal";
+
     const client = db();
     const { data, error } = await client
       .from("materials")
@@ -147,10 +152,11 @@ export async function POST(request: NextRequest) {
         file_type: fileType,
         file_key: key,
         file_size: buffer.byteLength,
-        status: "uploaded",
+        status: initialStatus,
+        parse_source: parseSource,
         owner_id: session?.id ?? null,
       })
-      .select("id, title, file_name, file_type, file_size, status, owner_id, created_at")
+      .select("id, title, file_name, file_type, file_size, status, parse_source, owner_id, created_at")
       .single();
 
     if (error) {
@@ -160,8 +166,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
     
-    console.log(`[Upload] 材料创建成功: id=${data.id}, key=${key}`);
-    return NextResponse.json({ material: data });
+    console.log(`[Upload] 材料创建成功: id=${data.id}, key=${key}, externalParse=${useExternalParse}`);
+    return NextResponse.json({ 
+      material: data,
+      externalParse: useExternalParse,
+    });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error(`[Upload] 异常: ${msg}`);

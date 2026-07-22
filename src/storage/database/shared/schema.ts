@@ -40,7 +40,8 @@ export const materials = pgTable(
 		file_size: integer("file_size").notNull().default(0),
 		content_text: text("content_text"),                          // 解析后的文本
 		status: varchar("status", { length: 20 }).notNull().default("uploaded"),
-		// uploaded / parsing / parsed / generating / ready / failed
+		// pending / uploaded / parsing / parsed / generating / ready / failed
+		parse_source: varchar("parse_source", { length: 20 }).default("internal"), // internal / external
 		error_message: text("error_message"),
 		metadata: jsonb("metadata"),                                  // AI 提取的元数据（法规、条款、风险等级、适用岗位）
 		owner_id: varchar("owner_id", { length: 36 }),                // 创建人（用于普通管理员的数据隔离）

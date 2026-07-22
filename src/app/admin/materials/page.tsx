@@ -18,6 +18,7 @@ import {
 	Inbox,
 	CloudUpload,
 	CheckCircle2,
+	RefreshCw,
 } from "lucide-react"
 import Link from "next/link"
 import { parsePDFFromFile } from "@/lib/pdf-parser"
@@ -46,6 +47,7 @@ interface Material {
 }
 
 const STATUS_MAP: Record<string, { label: string; className: string }> = {
+	pending: { label: "待解析", className: "bg-gray-50 text-gray-600 border-gray-200" },
 	uploaded: { label: "已上传", className: "bg-blue-50 text-[#1677ff] border-blue-200" },
 	parsing: { label: "解析中", className: "bg-amber-50 text-amber-700 border-amber-200" },
 	parsed: { label: "已解析", className: "bg-emerald-50 text-emerald-700 border-emerald-200" },
@@ -115,8 +117,15 @@ export default function MaterialsPage() {
 		try {
 			const fd = new FormData()
 			fd.append("file", file)
-			const res = await apiPost<{ material: { id: string } }>("/api/materials", fd)
+			const res = await apiPost<{ material: { id: string }; externalParse?: boolean }>("/api/materials", fd)
 			const materialId = res.material.id
+
+			// 如果启用了外部解析，直接跳转到详情页，不触发内部解析
+			if (res.externalParse) {
+				toast.success("上传成功，文件将自动解析，请稍后查看")
+				router.push(`/admin/materials/${materialId}`)
+				return
+			}
 
 			const isPDF = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")
 
@@ -308,9 +317,34 @@ export default function MaterialsPage() {
 										</div>
 									</div>
 
-									{m.status === "failed" && m.error_message && (
-										<div className="mt-3 rounded-md bg-red-50 border border-red-100 px-2.5 py-1.5 text-[11px] text-red-700">
-											{m.error_message}
+									{(m.status === "failed" || m.status === "pending") && (
+										<div className="mt-3 flex items-center gap-2">
+											<Button
+												size="sm"
+												variant="outline"
+												className="text-[#1677ff] border-[#1677ff]/30 hover:bg-[#1677ff]/5"
+												onClick={async () => {
+													try {
+														// 重置状态为 pending，等待外部解析
+														await apiPatch(`/api/materials/${m.id}`, {
+															status: "pending",
+															error_message: null,
+														})
+														toast.success("已重新提交解析队列")
+														load()
+													} catch {
+														toast.error("操作失败")
+													}
+												}}
+											>
+												<RefreshCw className="w-3.5 h-3.5 mr-1" />
+												重新解析
+											</Button>
+											{m.status === "failed" && m.error_message && (
+												<span className="text-[11px] text-red-500 truncate max-w-[200px]">
+													{m.error_message}
+												</span>
+											)}
 										</div>
 									)}
 
