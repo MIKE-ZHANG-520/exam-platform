@@ -21,11 +21,28 @@ async function ensureDefaultAdmin() {
 			username: "trainer",
 			password_hash: hashPassword("trainer123"),
 			real_name: "培训主管",
-			role: "user",
-			department: "生产一部",
+			role: "trainer",
+			department: "培训部",
 			avatar_color: "#f97316",
 			active: true,
 		})
+	}
+	// 确保 trainer 用户存在且角色正确
+	const { data: trainerUser } = await supabase.from("users").select("id, role").eq("username", "trainer").maybeSingle()
+	if (!trainerUser) {
+		// trainer 不存在，创建它
+		await supabase.from("users").insert({
+			username: "trainer",
+			password_hash: hashPassword("trainer123"),
+			real_name: "培训主管",
+			role: "trainer",
+			department: "培训部",
+			avatar_color: "#f97316",
+			active: true,
+		})
+	} else if (trainerUser.role !== "trainer") {
+		// trainer 存在但角色不对，更新角色
+		await supabase.from("users").update({ role: "trainer", department: "培训部" }).eq("username", "trainer")
 	}
 }
 
