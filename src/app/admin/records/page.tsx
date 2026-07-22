@@ -12,7 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { apiGet, fmtDate, fmtDuration } from "@/lib/http";
 import { toast } from "sonner";
-import { Loader2, Eye, Download, Search, FileText, ChevronDown, ChevronRight, LayoutList, Layers, Users, Trash2 } from "lucide-react";
+import { Loader2, Eye, Download, Search, FileText, ChevronDown, ChevronRight, LayoutList, Layers, Users, Trash2, QrCode, RotateCcw, X } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PageHeader } from "@/components/admin/page-header";
 
 interface Record {
@@ -41,6 +42,12 @@ function RecordsInner() {
   const [expandedExams, setExpandedExams] = useState<Set<string>>(new Set());
   const [expandedPersons, setExpandedPersons] = useState<Set<string>>(new Set());
   const [userRole, setUserRole] = useState<string>("user");
+  const [qrDialogOpen, setQrDialogOpen] = useState(false);
+  const [qrExamId, setQrExamId] = useState<string>("");
+  const [qrExamTitle, setQrExamTitle] = useState<string>("");
+  const [qrDataUrl, setQrDataUrl] = useState<string>("");
+  const [qrLink, setQrLink] = useState<string>("");
+  const [qrLoading, setQrLoading] = useState(false);
 
   const [filter, setFilter] = useState<{ name: string; team: string; exam_id: string; is_pass: "all" | "true" | "false"; start_date: string; end_date: string }>({
     name: "",
@@ -75,8 +82,8 @@ function RecordsInner() {
       .then((r) => setExams(r.items))
       .catch(() => {});
     // 获取当前用户角色
-    apiGet<{ role: string }>("/api/auth/me")
-      .then((r) => setUserRole(r.role))
+    apiGet<{ user: { role: string } }>("/api/auth/me")
+      .then((r) => setUserRole(r.user?.role || "user"))
       .catch(() => {});
   }, []);
 
@@ -201,6 +208,33 @@ function RecordsInner() {
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "删除失败");
     }
+  };
+
+  // 打开补考二维码弹窗
+  const openRetakeQr = async (examId: string, examTitle: string) => {
+    setQrExamId(examId);
+    setQrExamTitle(examTitle);
+    setQrDataUrl("");
+    setQrLink("");
+    setQrDialogOpen(true);
+    setQrLoading(true);
+    try {
+      const res = await apiGet<{ url: string; data_url: string }>(`/api/exams/${examId}/qrcode`);
+      setQrDataUrl(res.data_url);
+      setQrLink(res.url);
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "获取二维码失败");
+    } finally {
+      setQrLoading(false);
+    }
+  };
+
+  const copyExamLink = (link: string) => {
+    navigator.clipboard.writeText(link).then(() => {
+      toast.success("链接已复制");
+    }).catch(() => {
+      toast.error("复制失败");
+    });
   };
 
   const exportCsv = () => {
@@ -393,6 +427,11 @@ function RecordsInner() {
                               <Eye className="mr-1 h-4 w-4" /> 详情
                             </Button>
                           </Link>
+                          {r.is_pass === false && (
+                            <Button variant="ghost" size="sm" onClick={() => openRetakeQr(r.exam_id, r.exam_title || "考试")} className="text-[#1677ff] hover:text-[#0958d9] hover:bg-blue-50">
+                              <RotateCcw className="mr-1 h-4 w-4" /> 补考
+                            </Button>
+                          )}
                           {userRole === "admin" && (
                             <Button variant="ghost" size="sm" onClick={() => deleteRecord(r.id)} className="text-red-500 hover:text-red-700 hover:bg-red-50">
                               <Trash2 className="mr-1 h-4 w-4" /> 删除
@@ -527,6 +566,11 @@ function RecordsInner() {
                                         <Eye className="mr-1 h-4 w-4" /> 详情
                                       </Button>
                                     </Link>
+                                    {r.is_pass === false && (
+                                      <Button variant="ghost" size="sm" onClick={() => openRetakeQr(r.exam_id, r.exam_title || "考试")} className="text-[#1677ff] hover:text-[#0958d9] hover:bg-blue-50">
+                                        <RotateCcw className="mr-1 h-4 w-4" /> 补考
+                                      </Button>
+                                    )}
                                     {userRole === "admin" && (
                                       <Button variant="ghost" size="sm" onClick={() => deleteRecord(r.id)} className="text-red-500 hover:text-red-700 hover:bg-red-50">
                                         <Trash2 className="mr-1 h-4 w-4" /> 删除
@@ -658,6 +702,11 @@ function RecordsInner() {
                                         <Eye className="mr-1 h-4 w-4" /> 详情
                                       </Button>
                                     </Link>
+                                    {r.is_pass === false && (
+                                      <Button variant="ghost" size="sm" onClick={() => openRetakeQr(r.exam_id, r.exam_title || "考试")} className="text-[#1677ff] hover:text-[#0958d9] hover:bg-blue-50">
+                                        <RotateCcw className="mr-1 h-4 w-4" /> 补考
+                                      </Button>
+                                    )}
                                     {userRole === "admin" && (
                                       <Button variant="ghost" size="sm" onClick={() => deleteRecord(r.id)} className="text-red-500 hover:text-red-700 hover:bg-red-50">
                                         <Trash2 className="mr-1 h-4 w-4" /> 删除
@@ -678,6 +727,37 @@ function RecordsInner() {
           )}
         </div>
       )}
+
+      {/* 补考二维码弹窗 */}
+      <Dialog open={qrDialogOpen} onOpenChange={setQrDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <QrCode className="w-5 h-5 text-[#1677ff]" />
+              补考二维码
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-4 flex flex-col items-center gap-4">
+            <p className="text-sm text-gray-600 text-center">
+              让考生扫描下方二维码即可重新参加 <span className="font-medium text-gray-900">{qrExamTitle}</span>
+            </p>
+            {qrLoading ? (
+              <div className="w-56 h-56 flex items-center justify-center bg-gray-50 rounded-lg">
+                <Loader2 className="w-8 h-8 animate-spin text-[#1677ff]" />
+              </div>
+            ) : qrDataUrl ? (
+              <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                <img src={qrDataUrl} alt="补考二维码" className="w-48 h-48" />
+              </div>
+            ) : null}
+            {qrLink && (
+              <Button variant="outline" size="sm" onClick={() => copyExamLink(qrLink)} className="gap-1.5">
+                复制链接
+              </Button>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
