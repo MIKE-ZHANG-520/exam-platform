@@ -45,11 +45,13 @@ export async function POST(
     const updateData: Record<string, unknown> = {
       content_text: text,
       status: "parsed",
-      parse_stats: {
-        char_count: charCount || text.length,
-        word_count: wordCount || text.split(/\s+/).filter(Boolean).length,
-        page_count: pageCount || 0,
-        source: "frontend_pdfjs",
+      metadata: {
+        parse_stats: {
+          char_count: charCount || text.length,
+          word_count: wordCount || text.split(/\s+/).filter(Boolean).length,
+          page_count: pageCount || 0,
+          source: "frontend_pdfjs",
+        },
       },
     };
 
@@ -100,7 +102,7 @@ ${preview}
 
     return NextResponse.json({
       success: true,
-      parse_stats: updateData.parse_stats,
+      parse_stats: (updateData.metadata as Record<string, unknown>).parse_stats,
     });
   } catch (error) {
     console.error("Save parse result error:", error);

@@ -88,12 +88,6 @@ export async function POST(
           content_text: text_content,
           parse_source: "external",
           error_message: null,
-          parse_stats: {
-            char_count: text_content.length,
-            word_count: calculatedWordCount,
-            page_count: page_count ?? null,
-            parsed_at: new Date().toISOString(),
-          },
           updated_at: new Date().toISOString(),
         })
         .eq("id", id)

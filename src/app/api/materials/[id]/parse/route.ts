@@ -247,8 +247,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       .from("materials")
       .update({
         content_text: text,
-        metadata: metadata,
-        parse_stats: parseStats,
+        metadata: { ...metadata, parse_stats: parseStats },
         status: "parsed",
         updated_at: new Date().toISOString(),
       })
