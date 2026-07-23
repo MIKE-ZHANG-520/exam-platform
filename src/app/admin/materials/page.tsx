@@ -70,7 +70,12 @@ export default function MaterialsPage() {
 	const [drag, setDrag] = useState(false)
 	const [search, setSearch] = useState("")
 	const [statusFilter, setStatusFilter] = useState<string>("all")
+	const [userRole, setUserRole] = useState<string>("")
 	const fileRef = useRef<HTMLInputElement>(null)
+
+	useEffect(() => {
+		apiGet<{ role: string }>("/api/auth/me").then((r) => setUserRole(r.role)).catch(() => {})
+	}, [])
 
 	const load = useCallback(() => {
 		setLoading(true)
@@ -468,7 +473,7 @@ export default function MaterialsPage() {
 												<ListTree className="w-4 h-4" />
 											</Button>
 										</Link>
-										<AlertDialog>
+										{userRole === "admin" && (<AlertDialog>
 											<AlertDialogTrigger asChild>
 												<Button
 													size="sm"
@@ -490,7 +495,7 @@ export default function MaterialsPage() {
 													</AlertDialogAction>
 												</AlertDialogFooter>
 											</AlertDialogContent>
-										</AlertDialog>
+										</AlertDialog>)}
 									</div>
 								</div>
 							)

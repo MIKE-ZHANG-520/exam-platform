@@ -62,12 +62,17 @@ export default function ExamsPage() {
 	const [qrUrl, setQrUrl] = useState<string>("");
 	const [qrLink, setQrLink] = useState<string>("");
 	const [search, setSearch] = useState("");
+	const [userRole, setUserRole] = useState<string>("");
 
 	const [form, setForm] = useState<{ title: string; paper_type: "A" | "B"; bank_id: string }>({
 		title: "",
 		paper_type: "A",
 		bank_id: "",
 	});
+
+	useEffect(() => {
+		apiGet<{ role: string }>("/api/auth/me").then((r) => setUserRole(r.role)).catch(() => {});
+	}, []);
 
 	const load = useCallback(() => {
 		setLoading(true);
@@ -348,7 +353,7 @@ export default function ExamsPage() {
 											<ArrowRight className="w-3.5 h-3.5 ml-1" />
 										</Button>
 									</Link>
-									<AlertDialog>
+									{userRole === "admin" && (<AlertDialog>
 										<AlertDialogTrigger asChild>
 											<Button
 												size="sm"
@@ -370,7 +375,7 @@ export default function ExamsPage() {
 												</AlertDialogAction>
 											</AlertDialogFooter>
 										</AlertDialogContent>
-									</AlertDialog>
+									</AlertDialog>)}
 								</div>
 							</div>
 						))}
