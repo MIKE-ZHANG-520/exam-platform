@@ -446,7 +446,7 @@ function RecordsInner() {
             )}
           </CardContent>
         </Card>
-      ) : (
+      ) : viewMode === "grouped" ? (
         /* 按试卷分组视图 */
         <div className="space-y-4">
           {loading ? (
@@ -590,7 +590,7 @@ function RecordsInner() {
             </>
           )}
         </div>
-      )}
+      ) : null}
 
       {/* 按人员分组视图 */}
       {viewMode === "byPerson" && (
