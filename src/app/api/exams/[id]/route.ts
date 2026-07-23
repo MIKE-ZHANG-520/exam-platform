@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { getSession } from "@/lib/auth";
+import { logOperation, getClientIp, getUserAgent, OperationAction } from "@/lib/operation-log";
 
 export const runtime = "nodejs";
 
@@ -29,10 +31,25 @@ export async function GET(_req: NextRequest, { params }: Params) {
   return NextResponse.json({ exam: data, bank });
 }
 
-export async function DELETE(_req: NextRequest, { params }: Params) {
+export async function DELETE(req: NextRequest, { params }: Params) {
   const { id } = await params;
   const client = db();
   const { error } = await client.from("exams").delete().eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  
+  // 记录删除日志
+  const session = await getSession().catch(() => null);
+  if (session) {
+    logOperation({
+      userId: session.id,
+      userName: session.real_name || session.username,
+      action: OperationAction.EXAM_DELETE,
+      targetType: "exams",
+      targetId: id,
+      ipAddress: getClientIp(req),
+      userAgent: getUserAgent(req),
+    });
+  }
+  
   return NextResponse.json({ success: true });
 }

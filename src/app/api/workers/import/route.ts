@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 import { db } from "@/lib/db";
-import { requireAdmin } from "@/lib/auth";
+import { requireAdmin, getSession } from "@/lib/auth";
 import {
   encryptSensitive,
   maskIdCard,
@@ -10,6 +10,7 @@ import {
   extractBirthYear,
   extractGender,
 } from "@/lib/crypto";
+import { logOperation, getClientIp, getUserAgent, OperationAction } from "@/lib/operation-log";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -297,6 +298,20 @@ export async function POST(request: NextRequest) {
   const errors = results
     .filter((r) => r.status !== "success")
     .map((r) => ({ row: r.row, reason: r.reason || "" }));
+
+  // 记录导入日志
+  const session = await getSession().catch(() => null);
+  if (session) {
+    logOperation({
+      userId: session.id,
+      userName: session.real_name || session.username,
+      action: OperationAction.WORKER_IMPORT,
+      targetType: "workers",
+      detail: { file_name: file.name, total: workersData.length, success: insertedCount, skipped: results.filter((r) => r.status !== "success").length },
+      ipAddress: getClientIp(request),
+      userAgent: getUserAgent(request),
+    });
+  }
 
   return NextResponse.json({
     total: workersData.length,

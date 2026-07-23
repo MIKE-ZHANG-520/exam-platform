@@ -27,6 +27,7 @@ import {
 	Menu,
 	X,
 	Shield,
+	ScrollText,
 } from "lucide-react"
 import { toast } from "sonner"
 import {
@@ -77,6 +78,7 @@ const NAV: NavItem[] = [
 	{ href: "/admin/exams", label: "考试试卷", icon: BookOpen, group: "培训业务" },
 	{ href: "/admin/records", label: "考试记录", icon: BarChart3, group: "培训业务" },
 	{ href: "/admin/users", label: "用户管理", icon: Users, adminOnly: true, group: "系统" },
+	{ href: "/admin/operation-logs", label: "操作日志", icon: ScrollText, adminOnly: true, group: "系统" },
 ]
 
 function initials(name: string) {

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { getSession } from "@/lib/auth";
+import { logOperation, getClientIp, getUserAgent, OperationAction } from "@/lib/operation-log";
 
 export const runtime = "nodejs";
 
@@ -82,6 +84,22 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    
+    // 记录创建日志
+    const session = await getSession().catch(() => null);
+    if (session) {
+      logOperation({
+        userId: session.id,
+        userName: session.real_name || session.username,
+        action: OperationAction.EXAM_CREATE,
+        targetType: "exams",
+        targetId: data?.id,
+        detail: { title, bank_id, paper_type },
+        ipAddress: getClientIp(req),
+        userAgent: getUserAgent(req),
+      });
+    }
+    
     return NextResponse.json({ exam: data });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

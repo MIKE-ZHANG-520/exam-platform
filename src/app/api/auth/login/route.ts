@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/lib/db"
 const supabase = db()
 import { hashPassword, verifyPassword, setSessionCookie, signSession } from "@/lib/auth"
+import { logOperation, getClientIp, getUserAgent, OperationAction } from "@/lib/operation-log"
 
 export const runtime = "nodejs"
 
@@ -84,6 +85,16 @@ export async function POST(req: NextRequest) {
 	)
 	await setSessionCookie(token, remember)
 	await supabase.from("users").update({ last_login_at: new Date().toISOString() }).eq("id", data.id)
+
+	// 记录登录日志
+	logOperation({
+		userId: data.id,
+		userName: data.real_name || data.username,
+		action: OperationAction.LOGIN,
+		detail: { role: data.role, department: data.department },
+		ipAddress: getClientIp(req),
+		userAgent: getUserAgent(req),
+	})
 
 	return NextResponse.json({
 		user: {

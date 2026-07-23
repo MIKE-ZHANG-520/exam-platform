@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getStorage } from "@/lib/storage";
 import { getSession } from "@/lib/auth";
+import { logOperation, getClientIp, getUserAgent, OperationAction } from "@/lib/operation-log";
 
 export const runtime = "nodejs";
 
@@ -188,6 +189,21 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(`[Upload] 材料创建成功: id=${data.id}, key=${key}, externalParse=${useExternalParse}`);
+    
+    // 记录上传日志
+    if (session && data) {
+      logOperation({
+        userId: session.id,
+        userName: session.real_name || session.username,
+        action: OperationAction.MATERIAL_UPLOAD,
+        targetType: "materials",
+        targetId: data.id,
+        detail: { file_name: file.name, file_type: fileType, file_size: buffer.byteLength },
+        ipAddress: getClientIp(request),
+        userAgent: getUserAgent(request),
+      });
+    }
+    
     return NextResponse.json({ 
       material: data,
       externalParse: useExternalParse,

@@ -428,3 +428,26 @@ export const background_tasks = pgTable(
 		index("background_tasks_resource_idx").on(table.resource_type, table.resource_id),
 	]
 );
+
+// 操作日志表
+export const operation_logs = pgTable(
+	"operation_logs",
+	{
+		id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+		user_id: varchar("user_id", { length: 36 }),
+		user_name: varchar("user_name", { length: 100 }),
+		action: varchar("action", { length: 50 }).notNull(), // login, logout, create, update, delete, import, export, generate
+		target_type: varchar("target_type", { length: 50 }), // materials, question_banks, exams, workers, users
+		target_id: varchar("target_id", { length: 36 }),
+		detail: jsonb("detail"), // 操作详情
+		ip_address: varchar("ip_address", { length: 45 }),
+		user_agent: text("user_agent"),
+		created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+	},
+	(table) => [
+		index("operation_logs_user_id_idx").on(table.user_id),
+		index("operation_logs_action_idx").on(table.action),
+		index("operation_logs_created_at_idx").on(table.created_at),
+		index("operation_logs_target_idx").on(table.target_type, table.target_id),
+	]
+);
