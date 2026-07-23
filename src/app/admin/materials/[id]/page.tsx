@@ -836,45 +836,44 @@ export default function MaterialDetailPage() {
 				</Card>
 			)}
 
-			<Tabs defaultValue="worker" className="space-y-4">
-				<TabsList className="bg-white border border-gray-200 shadow-sm">
-					<TabsTrigger value="preview">
-						<Eye className="w-3.5 h-3.5 mr-1.5" />
-						预览文件
-					</TabsTrigger>
-					<TabsTrigger value="worker">🧑‍🏭 工人版</TabsTrigger>
-					<TabsTrigger value="trainer">🎓 培训师版</TabsTrigger>
-				</TabsList>
-				<TabsContent value="preview">
-					<Card className="border-0 brand-card">
-						<CardHeader className="pb-3">
-							<CardTitle className="text-base flex items-center gap-2">
-								<FileText className="w-4 h-4 text-[#1677ff]" />
-								文件预览
-								<Badge variant="outline" className="ml-1 text-[10px] text-gray-500 font-normal uppercase">
-									{data.material.file_type}
-								</Badge>
-							</CardTitle>
-						</CardHeader>
-						<CardContent>
-							{isParsed ? (
-								<FilePreview materialId={id} />
-							) : (
-								<div className="flex flex-col items-center justify-center gap-3 py-16 text-slate-500">
-									<FileText className="h-10 w-10 text-slate-300" />
-									<p className="text-sm">请先解析文件后才能预览</p>
+			{/* Preview Button */}
+				<Card className="border-0 brand-card">
+					<CardContent className="pt-5">
+						<div className="flex items-center justify-between">
+							<div className="flex items-center gap-3">
+								<div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center">
+									<FileText className="w-5 h-5 text-blue-600" />
 								</div>
-							)}
-						</CardContent>
-					</Card>
-				</TabsContent>
-				<TabsContent value="worker">
-					<OutlineCard outline={worker} audience="worker" onRefresh={load} materialId={id} isParsed={isParsed} />
-				</TabsContent>
-				<TabsContent value="trainer">
-					<OutlineCard outline={trainer} audience="trainer" onRefresh={load} materialId={id} isParsed={isParsed} />
-				</TabsContent>
-			</Tabs>
+								<div>
+									<h3 className="text-sm font-medium text-slate-900">文件预览</h3>
+									<p className="text-xs text-slate-500">在新窗口中查看文件内容</p>
+								</div>
+							</div>
+							<Button
+								variant="outline"
+								className="gap-2"
+								disabled={!isParsed}
+								onClick={() => window.open(`/admin/materials/${id}/preview`, "_blank")}
+							>
+								<Eye className="w-4 h-4" />
+								{isParsed ? "打开预览" : "未解析"}
+							</Button>
+						</div>
+					</CardContent>
+				</Card>
+
+				<Tabs defaultValue="worker" className="space-y-4">
+					<TabsList className="bg-white border border-gray-200 shadow-sm">
+						<TabsTrigger value="worker">🧑‍🏭 工人版</TabsTrigger>
+						<TabsTrigger value="trainer">🎓 培训师版</TabsTrigger>
+					</TabsList>
+					<TabsContent value="worker">
+						<OutlineCard outline={worker} audience="worker" onRefresh={load} materialId={id} isParsed={isParsed} />
+					</TabsContent>
+					<TabsContent value="trainer">
+						<OutlineCard outline={trainer} audience="trainer" onRefresh={load} materialId={id} isParsed={isParsed} />
+					</TabsContent>
+				</Tabs>
 		</div>
 	)
 }

@@ -463,6 +463,17 @@ export default function MaterialsPage() {
 												<ArrowRight className="w-3.5 h-3.5 ml-1" />
 											</Button>
 										</Link>
+										{m.status === "parsed" && (
+											<Button
+												size="sm"
+												variant="outline"
+												className="h-8 px-3 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600"
+												onClick={() => window.open(`/admin/materials/${m.id}/preview`, "_blank")}
+											>
+												<Eye className="w-3.5 h-3.5 mr-1" />
+												预览
+											</Button>
+										)}
 										<Link href={`/admin/banks?material=${m.id}`}>
 											<Button
 												size="sm"
