@@ -40,7 +40,7 @@ function RecordsInner() {
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<"flat" | "grouped" | "byPerson">("flat");
   const [expandedExams, setExpandedExams] = useState<Set<string>>(new Set());
-  const [expandedPersons, setExpandedPersons] = useState<Set<string>>(new Set());
+  const [expandedTeams, setExpandedTeams] = useState<Set<string>>(new Set());
   const [userRole, setUserRole] = useState<string>("user");
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
   const [qrExamId, setQrExamId] = useState<string>("");
@@ -151,46 +151,46 @@ function RecordsInner() {
     setExpandedExams(new Set());
   };
 
-  // 按人员分组
-  const personGroupedData = useCallback(() => {
-    const groups = new Map<string, { person: { name: string; phone: string }; records: Record[] }>();
+  // 按班组分类
+  const teamGroupedData = useCallback(() => {
+    const groups = new Map<string, { team: string; records: Record[] }>();
     
     for (const record of items) {
-      const key = `${record.candidate_name}_${record.phone || ""}`;
-      if (!groups.has(key)) {
-        groups.set(key, {
-          person: { name: record.candidate_name, phone: record.phone || "" },
+      const teamName = record.team || "未分组";
+      if (!groups.has(teamName)) {
+        groups.set(teamName, {
+          team: teamName,
           records: [],
         });
       }
-      groups.get(key)!.records.push(record);
+      groups.get(teamName)!.records.push(record);
     }
     
     return Array.from(groups.values()).map(group => {
       const records = group.records.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-      const latestRecord = records[0];
-      const bestScore = Math.max(...records.filter(r => r.score !== null).map(r => r.score || 0), 0);
+      const uniquePersons = new Set(records.map(r => `${r.candidate_name}_${r.phone || ""}`));
+      const passCount = records.filter(r => r.is_pass).length;
       
       return {
         ...group,
         stats: {
           total: records.length,
-          bestScore,
-          latestScore: latestRecord.score,
-          latestPass: latestRecord.is_pass,
+          personCount: uniquePersons.size,
+          passCount,
+          passRate: records.length > 0 ? Math.round((passCount / records.length) * 100) : 0,
         },
       };
     }).sort((a, b) => b.stats.total - a.stats.total);
   }, [items]);
 
-  // 切换人员分组展开状态
-  const togglePerson = (personKey: string) => {
-    setExpandedPersons(prev => {
+  // 切换班组分组展开状态
+  const toggleTeam = (teamKey: string) => {
+    setExpandedTeams(prev => {
       const next = new Set(prev);
-      if (next.has(personKey)) {
-        next.delete(personKey);
+      if (next.has(teamKey)) {
+        next.delete(teamKey);
       } else {
-        next.add(personKey);
+        next.add(teamKey);
       }
       return next;
     });
@@ -306,7 +306,7 @@ function RecordsInner() {
                 }`}
               >
                 <Users className="w-4 h-4" />
-                按人员分组
+                按班组分类
               </button>
             </div>
             <Button variant="outline" onClick={exportCsv} disabled={items.length === 0} className="hover:border-[#1677ff] hover:text-[#1677ff]">
@@ -592,7 +592,7 @@ function RecordsInner() {
         </div>
       ) : null}
 
-      {/* 按人员分组视图 */}
+      {/* 按班组分类视图 */}
       {viewMode === "byPerson" && (
         <div className="space-y-4">
           {loading ? (
@@ -617,21 +617,20 @@ function RecordsInner() {
           ) : (
             <>
               <div className="flex justify-end gap-2">
-                <Button variant="ghost" size="sm" onClick={() => setExpandedPersons(new Set(personGroupedData().map(g => `${g.person.name}_${g.person.phone}`)))} className="text-gray-500 hover:text-[#1677ff]">
+                <Button variant="ghost" size="sm" onClick={() => setExpandedTeams(new Set(teamGroupedData().map(g => g.team)))} className="text-gray-500 hover:text-[#1677ff]">
                   <ChevronDown className="w-4 h-4 mr-1" /> 全部展开
                 </Button>
-                <Button variant="ghost" size="sm" onClick={() => setExpandedPersons(new Set())} className="text-gray-500 hover:text-[#1677ff]">
+                <Button variant="ghost" size="sm" onClick={() => setExpandedTeams(new Set())} className="text-gray-500 hover:text-[#1677ff]">
                   <ChevronRight className="w-4 h-4 mr-1" /> 全部折叠
                 </Button>
               </div>
 
-              {personGroupedData().map((group) => {
-                const personKey = `${group.person.name}_${group.person.phone}`;
-                const isExpanded = expandedPersons.has(personKey);
+              {teamGroupedData().map((group) => {
+                const isExpanded = expandedTeams.has(group.team);
                 return (
-                  <div key={personKey} className="brand-card rounded-xl overflow-hidden">
+                  <div key={group.team} className="brand-card rounded-xl overflow-hidden">
                     <button
-                      onClick={() => togglePerson(personKey)}
+                      onClick={() => toggleTeam(group.team)}
                       className="w-full flex items-center justify-between p-4 hover:bg-gray-50/50 transition-colors"
                     >
                       <div className="flex items-center gap-3">
@@ -641,25 +640,17 @@ function RecordsInner() {
                           {isExpanded ? <ChevronDown className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
                         </div>
                         <div className="text-left">
-                          <h3 className="font-semibold text-gray-900">{group.person.name}</h3>
+                          <h3 className="font-semibold text-gray-900">{group.team}</h3>
                           <div className="flex items-center gap-4 mt-1 text-xs text-gray-500">
                             <span>考试 <span className="font-medium text-gray-700">{group.stats.total}</span> 次</span>
-                            <span>最高分 <span className="font-medium text-gray-700">{group.stats.bestScore}</span></span>
-                            <span>
-                              最新成绩{" "}
-                              <span className={`font-medium ${
-                                group.stats.latestPass === true ? "text-emerald-600" : 
-                                group.stats.latestPass === false ? "text-red-600" : "text-gray-500"
-                              }`}>
-                                {group.stats.latestScore ?? "未完成"}
-                              </span>
-                            </span>
+                            <span>参考人数 <span className="font-medium text-gray-700">{group.stats.personCount}</span> 人</span>
+                            <span>通过率 <span className="font-medium text-gray-700">{group.stats.passRate}%</span></span>
                           </div>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
                         <Badge className="bg-blue-50 text-blue-700 border border-blue-200">
-                          {group.person.phone || "无手机号"}
+                          {group.stats.passCount}/{group.stats.total} 通过
                         </Badge>
                       </div>
                     </button>
@@ -669,6 +660,7 @@ function RecordsInner() {
                         <Table>
                           <TableHeader>
                             <TableRow className="bg-gray-50/60">
+                              <TableHead>姓名</TableHead>
                               <TableHead>试卷</TableHead>
                               <TableHead className="text-right">得分</TableHead>
                               <TableHead>结果</TableHead>
@@ -681,6 +673,7 @@ function RecordsInner() {
                           <TableBody>
                             {group.records.map((r, i) => (
                               <TableRow key={r.id} className={i % 2 === 1 ? "bg-gray-50/30" : ""}>
+                                <TableCell className="text-gray-900 font-medium">{r.candidate_name}</TableCell>
                                 <TableCell className="text-gray-600">{r.exam_title || "-"}</TableCell>
                                 <TableCell className="text-right tabular-nums font-semibold text-gray-900">{r.score ?? "-"}</TableCell>
                                 <TableCell>
