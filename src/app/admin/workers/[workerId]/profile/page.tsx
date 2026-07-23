@@ -19,6 +19,12 @@ import {
   Plus,
   Calendar,
   Award,
+  FolderUp,
+  FolderOpen,
+  ClipboardList,
+  Loader2,
+  Eye,
+  Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -44,7 +50,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner"
-import { apiGet } from "@/lib/http"
+import { apiGet, apiPost } from "@/lib/http"
 
 interface WorkerInfo {
   id: string;
@@ -606,6 +612,48 @@ export default function WorkerProfilePage() {
                     <p className="mt-2 text-sm text-red-600">{profile.reject_reason}</p>
                   </div>
                 )}
+
+                {/* 入场资料分类上传 */}
+                <div className="space-y-4 pt-4 border-t">
+                  <h3 className="font-medium flex items-center gap-2">
+                    <FolderUp className="h-4 w-4 text-primary" />
+                    资料分类上传
+                  </h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    <MaterialUploadCard
+                      title="综合资料"
+                      description="成套资料批量上传"
+                      icon={<FileText className="h-5 w-5" />}
+                      category="general"
+                      personId={workerId}
+                      onUploaded={fetchData}
+                    />
+                    <MaterialUploadCard
+                      title="三级教育资料"
+                      description="三级安全教育相关资料"
+                      icon={<GraduationCap className="h-5 w-5" />}
+                      category="safety_education"
+                      personId={workerId}
+                      onUploaded={fetchData}
+                    />
+                    <MaterialUploadCard
+                      title="入场交底资料"
+                      description="入场安全交底相关资料"
+                      icon={<ClipboardList className="h-5 w-5" />}
+                      category="safety_briefing"
+                      personId={workerId}
+                      onUploaded={fetchData}
+                    />
+                    <MaterialUploadCard
+                      title="其他资料"
+                      description="补充性资料上传"
+                      icon={<FolderOpen className="h-5 w-5" />}
+                      category="other"
+                      personId={workerId}
+                      onUploaded={fetchData}
+                    />
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
@@ -1061,5 +1109,101 @@ function ImageCard({
         <span className="text-xs text-white">{title}</span>
       </div>
     </div>
+  );
+}
+
+// 资料分类上传卡片组件
+function MaterialUploadCard({
+  title,
+  description,
+  icon,
+  category,
+  personId,
+  onUploaded,
+}: {
+  title: string;
+  description: string;
+  icon: React.ReactNode;
+  category: "general" | "safety_education" | "safety_briefing" | "other";
+  personId: string;
+  onUploaded: () => void;
+}) {
+  const [uploading, setUploading] = useState(false);
+  const [files, setFiles] = useState<File[]>([]);
+
+  const handleUpload = async () => {
+    if (files.length === 0) return;
+    setUploading(true);
+    try {
+      for (const file of files) {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("category", category);
+        await apiPost(`/api/person-materials?personId=${personId}`, formData);
+      }
+      setFiles([]);
+      onUploaded();
+    } catch (error) {
+      console.error("Upload failed:", error);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <Card className="border shadow-sm hover:shadow-md transition-shadow">
+      <CardContent className="pt-4">
+        <div className="flex items-start gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            {icon}
+          </div>
+          <div className="flex-1 min-w-0">
+            <h4 className="font-medium text-sm">{title}</h4>
+            <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
+          </div>
+        </div>
+        <div className="mt-3">
+          <input
+            type="file"
+            multiple
+            className="hidden"
+            id={`upload-${category}`}
+            onChange={(e) => setFiles(Array.from(e.target.files || []))}
+            accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+          />
+          <label
+            htmlFor={`upload-${category}`}
+            className="flex items-center justify-center gap-2 w-full h-9 rounded-md border border-dashed border-gray-300 text-sm text-gray-500 hover:border-primary hover:text-primary cursor-pointer transition-colors"
+          >
+            {uploading ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                上传中...
+              </>
+            ) : files.length > 0 ? (
+              <>
+                <CheckCircle2 className="h-4 w-4" />
+                已选 {files.length} 个文件
+              </>
+            ) : (
+              <>
+                <Upload className="h-4 w-4" />
+                选择文件
+              </>
+            )}
+          </label>
+          {files.length > 0 && (
+            <Button
+              size="sm"
+              className="w-full mt-2"
+              onClick={handleUpload}
+              disabled={uploading}
+            >
+              {uploading ? "上传中..." : `上传 ${files.length} 个文件`}
+            </Button>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }

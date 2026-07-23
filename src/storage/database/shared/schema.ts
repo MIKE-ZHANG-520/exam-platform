@@ -451,3 +451,27 @@ export const operation_logs = pgTable(
 		index("operation_logs_target_idx").on(table.target_type, table.target_id),
 	]
 );
+
+// 人员入场资料表
+export const person_materials = pgTable(
+	"person_materials",
+	{
+		id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+		person_id: varchar("person_id", { length: 36 }).notNull(),
+		category: varchar("category", { length: 30 }).notNull(), // general, safety_education, safety_briefing, other
+		file_name: varchar("file_name", { length: 255 }).notNull(),
+		file_type: varchar("file_type", { length: 20 }),
+		file_key: varchar("file_key", { length: 500 }).notNull(),
+		file_size: integer("file_size"),
+		status: varchar("status", { length: 20 }).notNull().default("pending"), // pending, parsing, completed, failed
+		parse_result: jsonb("parse_result"),
+		error_message: text("error_message"),
+		created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+		updated_at: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+	},
+	(table) => [
+		index("person_materials_person_id_idx").on(table.person_id),
+		index("person_materials_category_idx").on(table.category),
+		index("person_materials_status_idx").on(table.status),
+	]
+);
