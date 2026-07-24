@@ -5,9 +5,9 @@
 
 import { db } from "@/lib/db"
 
-export type TaskType = "parse_file" | "generate_questions" | "generate_outline" | "import_roster"
+export type TaskType = "parse_file" | "generate_questions" | "generate_outline" | "import_roster" | "parse_person_material"
 export type TaskStatus = "pending" | "processing" | "completed" | "failed"
-export type ResourceType = "materials" | "question_banks" | "outlines" | "workers"
+export type ResourceType = "materials" | "question_banks" | "outlines" | "workers" | "person_materials"
 
 export interface TaskPayload {
   // parse_file
