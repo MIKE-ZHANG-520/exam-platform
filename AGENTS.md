@@ -23,21 +23,27 @@
 src/
 ├── app/
 │   ├── api/                     # 后端 API 路由
-│   │   ├── materials/           # 材料 CRUD + 解析/提纲/题库生成
+│   │   ├── materials/           # 材料 CRUD + 解析/提纲/题库生成（含任务队列模式）
 │   │   ├── banks/               # 题库 CRUD + 题目增删
 │   │   ├── questions/[id]       # 单题编辑/删除
 │   │   ├── exams/               # 试卷 CRUD + 二维码 + 公开接口（开始考试）
 │   │   ├── records/             # 考试记录 + 交卷 + 评价
 │   │   ├── dashboard            # 数据看板聚合接口
 │   │   ├── worker-profiles/     # 工人档案 + 培训 + 交底 + 审核
-│   │   └── workers/[id]/public  # 公开扫码查询接口
+│   │   ├── workers/[id]/public  # 公开扫码查询接口
+│   │   ├── person-materials/    # 人员入场资料分类上传/查询/删除
+│   │   ├── operation-logs/      # 操作日志查询
+│   │   ├── worker/queue/        # 统一后台任务队列（Worker 拉取）
+│   │   ├── worker/tasks/[id]/result/ # 统一任务结果回写
+│   │   └── tasks/[id]/          # 任务状态查询
 │   ├── admin/                   # 管理后台（PC）
 │   │   ├── dashboard            # 数据看板
-│   │   ├── materials            # 材料管理 + 详情（提纲/题库）
+│   │   ├── materials            # 材料管理 + 详情（提纲/题库）+ 新窗口预览
 │   │   ├── banks                # 题库管理 + 题目编辑
 │   │   ├── exams                # 试卷管理 + 二维码弹窗
-│   │   ├── records              # 考试记录 + 答卷详情
-│   │   └── workers/             # 工人安全管理 + 档案详情
+│   │   ├── records              # 考试记录 + 答卷详情（按班组分类）
+│   │   ├── operation-logs       # 操作日志查看
+│   │   └── workers/             # 工人安全管理 + 档案详情（含入场资料分类上传）
 │   └── exam/[id]/               # 工人考试端（H5）
 │       ├── page.tsx             # 信息录入 + 开始考试
 │       ├── paper/               # 答题页（倒计时/切屏检测/题卡）
@@ -49,11 +55,15 @@ src/
 │   └── admin/                   # 管理后台专用组件（sidebar/page-header）
 ├── lib/
 │   ├── ai.ts                    # LLM/FetchClient 封装 + JSON 抽取
+│   ├── auth.ts                  # 认证/鉴权（session/scrypt/requireAdmin/requireTrainerOrAbove）
 │   ├── crypto.ts                # 身份证 AES 加密/脱敏
 │   ├── db.ts                    # Supabase 客户端 + 随机工具
-│   ├── http.ts                  # 前端 fetch 封装
+│   ├── http.ts                  # 前端 fetch 封装（apiGet/apiPost/apiPatch/apiDelete）
+│   ├── operation-log.ts         # 操作日志记录工具
 │   ├── paper.ts                 # 试卷快照构建 + 评分
-│   ├── storage.ts               # 对象存储上传
+│   ├── pdf-parser.ts            # 浏览器端 PDF 文本提取（pdfjs-dist）
+│   ├── storage.ts               # 对象存储上传 + 预签名 URL
+│   ├── task-queue.ts            # 统一后台任务队列（createTask/updateTaskStatus）
 │   └── types.ts                 # 共享类型
 └── storage/database/
     ├── shared/schema.ts         # Drizzle 表定义
@@ -73,6 +83,9 @@ src/
 - `safety_trainings`：三级安全教育培训（company/project/team 三级）
 - `safety_briefings`：入场交底记录
 - `special_trainings`：专项培训记录
+- `person_materials`：人员入场资料分类上传（category=general/safety_education/safety_briefing/other）
+- `background_tasks`：统一后台任务队列（type/status/resource_type/resource_id/payload）
+- `operation_logs`：操作日志（action/target/user_id/details/ip）
 
 ## 关键 API
 
@@ -101,6 +114,14 @@ src/
 | `/api/worker-profiles/[workerId]/briefings` | GET/POST | 入场交底记录 |
 | `/api/worker-profiles/[workerId]/review` | POST/PUT | 档案审核/二维码生成 |
 | `/api/workers/[workerId]/public` | GET | 公开接口：扫码查询工人档案 |
+| `/api/person-materials` | GET/POST | 人员入场资料查询/分类上传 |
+| `/api/person-materials/[id]` | DELETE | 删除人员资料 |
+| `/api/operation-logs` | GET | 操作日志查询（分页+筛选） |
+| `/api/worker/queue` | GET | 统一任务队列（Worker 拉取待处理任务） |
+| `/api/worker/tasks/[id]/result` | POST | 统一任务结果回写 |
+| `/api/tasks/[id]` | GET | 任务状态查询（前端轮询） |
+| `/api/materials/[id]/generate-outline` | POST | 提纲生成任务提交 |
+| `/api/materials/[id]/generate-questions` | POST | 题库生成任务提交 |
 
 ## 开发命令
 
@@ -134,7 +155,18 @@ src/
 
 ## 版本历史
 
-### v2.3.1 (2026-07-20)
+### v2.4.0 (2026-08-01)
+- **新增**：人员入场资料分类上传（person_materials 表 + API + 前端 4 分类卡片）
+- **新增**：统一后台任务队列架构（background_tasks 表 + Worker 模式）
+- **新增**：操作日志功能（operation_logs 表 + 记录关键操作 + 管理页面）
+- **新增**：培训主管角色（trainer）及权限体系
+- **修复**：上传失败错误提示不清晰（apiPost 展示后端实际错误）
+- **修复**：考试记录页面分组切换 bug
+- **优化**：考试记录"按人员分组"改为"按班组分类"
+- **优化**：培训材料预览改为新窗口打开
+- **优化**：外部解析 API 认证（X-Parse-Token）
+
+### v2.3.3 (2026-07-20)
 - **重构**：花名册导入完全重写，AI 直接提取结构化数据
 - **修复**：工人编辑表单 Select 空值崩溃
 - **修复**：花名册导入「班组（工种）」复合列名识别
