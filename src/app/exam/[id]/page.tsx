@@ -201,7 +201,7 @@ export default function ExamEntryPage() {
 								<AlertCircle className="w-3.5 h-3.5" />答题须知
 							</div>
 							<ul className="ml-4 list-disc space-y-0.5">
-								<li>每人 {exam.max_attempts} 次考试机会</li>
+								<li>每 12 小时内 {exam.max_attempts} 次考试机会</li>
 								<li>切屏超过 3 次自动交卷</li>
 								<li>超时未交卷将自动交卷</li>
 							</ul>

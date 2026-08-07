@@ -89,9 +89,9 @@ function ResultInner() {
 					</CardContent>
 				</Card>
 
-				{!passed && r.attempt_no >= 2 && (
+				{!passed && (
 					<div className="mt-3 rounded-xl border border-orange-200 bg-orange-50 p-4 text-xs text-orange-700 leading-relaxed">
-						你已用完 2 次考试机会，请联系管理员安排补训后重新参考。
+						你已用完本轮 2 次考试机会，请 12 小时后再试，或联系管理员安排补训。
 					</div>
 				)}
 

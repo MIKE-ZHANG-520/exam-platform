@@ -55,25 +55,36 @@ export async function POST(req: NextRequest, { params }: Params) {
     if (required.team && !team) return NextResponse.json({ error: "请填写班组" }, { status: 400 });
     if (required.id_card && !idCard) return NextResponse.json({ error: "请填写身份证号" }, { status: 400 });
 
-    // 校验尝试次数（按 手机号 + 试卷 计数）
+    // 校验尝试次数（12 小时窗口制：只统计近 12 小时内的考试次数）
     let attempt_no = 1;
     if (phone) {
-      const { data: history } = await client
+      const windowStart = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString();
+      const { data: recentHistory } = await client
         .from("exam_records")
-        .select("id, attempt_no, is_pass")
+        .select("id, attempt_no, is_pass, created_at")
+        .eq("exam_id", id)
+        .eq("phone", phone)
+        .gte("created_at", windowStart)
+        .order("created_at", { ascending: false });
+
+      // 全量历史查询（仅用于计算累计 attempt_no，不限制考试机会）
+      const { data: allHistory } = await client
+        .from("exam_records")
+        .select("id, attempt_no")
         .eq("exam_id", id)
         .eq("phone", phone)
         .order("attempt_no", { ascending: false });
-      const historyList = history ?? [];
-      const hasPassed = historyList.some((r) => r.is_pass);
-      if (hasPassed) {
-        return NextResponse.json({ error: "您已通过本次考试，无需再考" }, { status: 400 });
+
+      const recentList = recentHistory ?? [];
+      const allList = allHistory ?? [];
+      const maxAttempts = exam.max_attempts ?? 2;
+
+      if (recentList.length >= maxAttempts) {
+        return NextResponse.json({ error: `12 小时内已有 ${recentList.length} 次考试记录，请 12 小时后再试（累计已考 ${allList.length} 次）` }, { status: 403 });
       }
-      const usedTimes = historyList.filter((r) => r.attempt_no !== null).length;
-      if (usedTimes >= (exam.max_attempts ?? 2)) {
-        return NextResponse.json({ error: `已达最大考试次数（${exam.max_attempts}次），请联系管理员` }, { status: 403 });
-      }
-      attempt_no = usedTimes + 1;
+
+      // attempt_no 基于全量历史递增，保证编号连续
+      attempt_no = allList.length + 1;
     }
 
     // 加载题库
