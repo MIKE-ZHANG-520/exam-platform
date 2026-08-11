@@ -11,7 +11,6 @@ import {
 	FileText,
 	Trash2,
 	Upload,
-	Download,
 	Plus,
 	User,
 	LogIn,
