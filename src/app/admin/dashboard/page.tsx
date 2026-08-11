@@ -28,6 +28,9 @@ import {
 	LineChart,
 	Line,
 	Cell,
+	PieChart,
+	Pie,
+	Legend,
 } from "recharts"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
@@ -71,12 +74,21 @@ interface Retake {
 	attempt_no: number
 }
 
+interface ExamTypeStat {
+	title: string
+	participated: number
+	passed: number
+	pass_rate: number
+	team_count: number
+}
+
 interface DashData {
 	kpi: Kpi
 	trend: Trend[]
 	score_buckets: Bucket[]
 	team_stats: TeamStat[]
 	retake_list: Retake[]
+	exam_type_stats: ExamTypeStat[]
 }
 
 const KPI_THEMES = [
@@ -244,6 +256,55 @@ export default function DashboardPage() {
 					</CardContent>
 				</Card>
 			</div>
+
+			{/* 各考试类型分布 */}
+			<Card className="brand-card border-0">
+				<CardHeader className="pb-2 flex flex-row items-center justify-between">
+					<CardTitle className="text-base flex items-center gap-2">
+						<BarChart3 className="w-4 h-4 text-[#8b5cf6]" />
+						各考试类型分布
+					</CardTitle>
+					<span className="text-xs text-gray-400">按参考人次排序</span>
+				</CardHeader>
+				<CardContent className="pt-2">
+					{data.exam_type_stats.length === 0 ? (
+						<EmptyState hint="暂无考试类型数据" />
+					) : (
+						<div className="overflow-x-auto">
+							<table className="w-full text-sm">
+								<thead>
+									<tr className="border-b border-gray-100">
+										<th className="text-left py-2 px-3 text-gray-500 font-medium">考试名称</th>
+										<th className="text-right py-2 px-3 text-gray-500 font-medium">参考人数</th>
+										<th className="text-right py-2 px-3 text-gray-500 font-medium">通过人数</th>
+										<th className="text-right py-2 px-3 text-gray-500 font-medium">及格率</th>
+										<th className="text-right py-2 px-3 text-gray-500 font-medium">参考班组</th>
+									</tr>
+								</thead>
+								<tbody>
+									{data.exam_type_stats.map((exam, idx) => (
+										<tr key={idx} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
+											<td className="py-3 px-3 font-medium text-gray-800">{exam.title}</td>
+											<td className="py-3 px-3 text-right tabular-nums text-gray-700">{exam.participated}</td>
+											<td className="py-3 px-3 text-right tabular-nums text-[#10b981] font-medium">{exam.passed}</td>
+											<td className="py-3 px-3 text-right">
+												<span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+													exam.pass_rate >= 80 ? "bg-[#ecfdf5] text-[#10b981]" :
+													exam.pass_rate >= 60 ? "bg-[#fffbeb] text-[#d97706]" :
+													"bg-[#fef2f2] text-[#ef4444]"
+												}`}>
+													{exam.pass_rate.toFixed(1)}%
+												</span>
+											</td>
+											<td className="py-3 px-3 text-right tabular-nums text-gray-600">{exam.team_count} 个</td>
+										</tr>
+									))}
+								</tbody>
+							</table>
+						</div>
+					)}
+				</CardContent>
+			</Card>
 
 			{/* 班组排行 + 待补考清单 */}
 			<div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

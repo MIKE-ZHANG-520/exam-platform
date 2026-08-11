@@ -103,6 +103,45 @@ export async function GET() {
     .order("created_at", { ascending: false })
     .limit(100);
 
+  // 各考试类型分布（按 exam_id 分组，关联 exams 表获取标题）
+  const { data: examList } = await client
+    .from("exams")
+    .select("id, title")
+    .eq("status", "active");
+
+  const examMap = new Map<string, string>();
+  (examList ?? []).forEach((e: { id: string; title: string }) => {
+    examMap.set(e.id, e.title);
+  });
+
+  const examTypeMap = new Map<string, {
+    title: string;
+    participated: number;
+    passed: number;
+    teams: Set<string>;
+  }>();
+
+  finished.forEach((r) => {
+    const title = examMap.get(r.exam_id) || "未知考试";
+    if (!examTypeMap.has(title)) {
+      examTypeMap.set(title, { title, participated: 0, passed: 0, teams: new Set() });
+    }
+    const bucket = examTypeMap.get(title)!;
+    bucket.participated += 1;
+    if (r.is_pass) bucket.passed += 1;
+    if (r.team) bucket.teams.add(r.team);
+  });
+
+  const exam_type_stats = Array.from(examTypeMap.entries())
+    .map(([_, v]) => ({
+      title: v.title,
+      participated: v.participated,
+      passed: v.passed,
+      pass_rate: v.participated > 0 ? Math.round((v.passed / v.participated) * 1000) / 10 : 0,
+      team_count: v.teams.size,
+    }))
+    .sort((a, b) => b.participated - a.participated);
+
   return NextResponse.json({
     kpi: {
       total_records: total,
@@ -117,5 +156,6 @@ export async function GET() {
     trend,
     score_buckets: scoreBuckets,
     retake_list: retakeList ?? [],
+    exam_type_stats,
   });
 }
