@@ -41,8 +41,8 @@ interface StartResp {
 const TEAM_OPTIONS = [
 	{ value: "EM", label: "EM" },
 	{ value: "监理", label: "监理" },
-	{ value: "中闽大秦总包", label: "中闽大秦总包" },
-	{ value: "中闽大秦分包", label: "中闽大秦分包" },
+	{ value: "总包", label: "总包" },
+	{ value: "总包分包", label: "总包分包" },
 ] as const
 
 export default function ExamEntryPage() {
@@ -65,18 +65,18 @@ export default function ExamEntryPage() {
 		if (!form.candidate_name.trim()) return toast.error("请填写姓名")
 		if (exam.required_fields?.phone && !form.phone.trim()) return toast.error("请填写手机号")
 		if (exam.required_fields?.team && !form.team.trim()) return toast.error("请选择班组")
-		if (form.team === "中闽大秦分包" && !form.team_detail.trim()) return toast.error("中闽大秦分包必须填写具体班组名称")
+		if (form.team === "总包分包" && !form.team_detail.trim()) return toast.error("总包分包必须填写具体班组名称")
 		if (exam.required_fields?.id_card && !form.id_card.trim()) return toast.error("请填写身份证号")
 		if (form.phone && !/^1[3-9]\d{9}$/.test(form.phone.trim())) return toast.error("手机号格式不正确")
 
 		setStarting(true)
 		try {
-			// 合并班组字段：中闽大秦分包 → "中闽大秦分包·{具体班组}"；其他直接用 team 值
+			// 合并班组字段：总包分包 → "总包分包·{具体班组}"；其他直接用 team 值
 			const payload = {
 				...form,
 				team:
-					form.team === "中闽大秦分包" && form.team_detail.trim()
-						? `中闽大秦分包·${form.team_detail.trim()}`
+					form.team === "总包分包" && form.team_detail.trim()
+						? `总包分包·${form.team_detail.trim()}`
 						: form.team,
 			}
 			const res = await apiPost<StartResp>(`/api/exams/${params.id}/public`, payload)
@@ -173,7 +173,7 @@ export default function ExamEntryPage() {
 										))}
 									</SelectContent>
 								</Select>
-								{form.team === "中闽大秦分包" && (
+								{form.team === "总包分包" && (
 									<div className="mt-2">
 										<Label className="mb-1.5 block text-sm text-gray-700 font-medium">
 											具体班组名称 <span className="text-red-500">*</span>
