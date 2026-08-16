@@ -50,14 +50,14 @@ export async function POST(request: NextRequest, { params }: Params) {
     .from("question_banks")
     .insert({
       id: bankId,
-      name: `${material.title} - ${difficulty === "easy" ? "基础题" : "进阶题"}`,
+      title: `${material.title} - ${difficulty === "easy" ? "基础题" : "进阶题"}`,
       difficulty,
       total_count: 0,
       status: "draft",
       owner_id: session.id,
       material_id: materialId,
       
-      note,
+      generation_note: note,
     })
 
   if (bankError) {
@@ -73,7 +73,7 @@ export async function POST(request: NextRequest, { params }: Params) {
       difficulty,
       count,
       bank_id: bankId,
-      note,
+      generation_note: note,
     },
   })
 
