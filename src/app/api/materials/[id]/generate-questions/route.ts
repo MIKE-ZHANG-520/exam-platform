@@ -55,8 +55,8 @@ export async function POST(request: NextRequest, { params }: Params) {
       total_count: 0,
       status: "draft",
       owner_id: session.id,
-      source_type: "material",
-      source_id: materialId,
+      material_id: materialId,
+      
       note,
     })
 
