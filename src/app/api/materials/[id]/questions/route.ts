@@ -291,41 +291,41 @@ async function handleStart(
     return NextResponse.json({ error: "材料尚未解析，请先执行解析" }, { status: 400 });
   }
 
-  // 第 1 批：删除同 difficulty 旧题库 + 对应题目 + 创建新 bank
+  // 第 1 批：检查是否已有题库，如果有则复用（不删除）
   let bankId: string;
   if (batchIndex === 0) {
-    const { data: oldBanks } = await client
+    // 先查找是否已有同材料、同难度的题库
+    const { data: existingBanks } = await client
       .from("question_banks")
       .select("id")
       .eq("material_id", materialId)
-      .eq("difficulty", difficulty);
-    if (oldBanks && oldBanks.length > 0) {
-      const ids = oldBanks.map((b) => b.id);
-      // 先删题目（级联），再删题库
-      if (ids.length > 0) {
-        await client.from("questions").delete().in("bank_id", ids);
-        await client.from("question_banks").delete().in("id", ids);
+      .eq("difficulty", difficulty)
+      .limit(1);
+    
+    if (existingBanks && existingBanks.length > 0) {
+      // 复用已有题库（不删除旧题目）
+      bankId = existingBanks[0].id;
+    } else {
+      // 创建新题库
+      const bankTitle = `《${material.title}》培训题库（${difficulty === "easy" ? "简易" : "中等"}）`;
+      const { data: newBank, error: bErr } = await client
+        .from("question_banks")
+        .insert({
+          material_id: materialId,
+          title: bankTitle,
+          difficulty,
+          total_count: 0,
+          status: "draft",
+          owner_id: userId,
+          generation_note: note || null,
+        })
+        .select("id")
+        .single();
+      if (bErr || !newBank) {
+        return NextResponse.json({ error: bErr?.message || "创建题库失败" }, { status: 500 });
       }
+      bankId = newBank.id;
     }
-
-    const bankTitle = `《${material.title}》培训题库（${difficulty === "easy" ? "简易" : "中等"}）`;
-    const { data: newBank, error: bErr } = await client
-      .from("question_banks")
-      .insert({
-        material_id: materialId,
-        title: bankTitle,
-        difficulty,
-        total_count: 0,
-        status: "draft",
-        owner_id: userId,
-        generation_note: note || null,
-      })
-      .select("id")
-      .single();
-    if (bErr || !newBank) {
-      return NextResponse.json({ error: bErr?.message || "创建题库失败" }, { status: 500 });
-    }
-    bankId = newBank.id;
   } else {
     if (!body.bankId) {
       return NextResponse.json({ error: "batchIndex > 0 时必须传 bankId" }, { status: 400 });
