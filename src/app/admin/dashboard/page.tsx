@@ -145,8 +145,11 @@ const BUCKET_COLORS = ["#ef4444", "#f97316", "#3b82f6", "#10b981"]
 
 export default function DashboardPage() {
 	const [data, setData] = useState<DashData | null>(null)
+	const [showExamType, setShowExamType] = useState(true)
 
 	useEffect(() => {
+		// 先处理超时记录，再加载看板数据
+		fetch("/api/records/auto-expire", { method: "POST" }).catch(() => {})
 		fetch("/api/dashboard")
 			.then((r) => r.json())
 			.then(setData)
@@ -258,14 +261,23 @@ export default function DashboardPage() {
 			</div>
 
 			{/* 各考试类型分布 */}
-			<Card className="brand-card border-0">
-				<CardHeader className="pb-2 flex flex-row items-center justify-between">
-					<CardTitle className="text-base flex items-center gap-2">
-						<BarChart3 className="w-4 h-4 text-[#8b5cf6]" />
-						各考试类型分布
-					</CardTitle>
-					<span className="text-xs text-gray-400">按参考人次排序</span>
-				</CardHeader>
+			{showExamType && data.exam_type_stats.length > 0 && (
+				<Card className="brand-card border-0">
+					<CardHeader className="pb-2 flex flex-row items-center justify-between">
+						<CardTitle className="text-base flex items-center gap-2">
+							<BarChart3 className="w-4 h-4 text-[#8b5cf6]" />
+							各考试类型分布
+						</CardTitle>
+						<div className="flex items-center gap-3">
+							<span className="text-xs text-gray-400">按参考人次排序</span>
+							<button
+								onClick={() => setShowExamType(false)}
+								className="text-xs text-gray-400 hover:text-gray-600"
+							>
+								隐藏
+							</button>
+						</div>
+					</CardHeader>
 				<CardContent className="pt-2">
 					{data.exam_type_stats.length === 0 ? (
 						<EmptyState hint="暂无考试类型数据" />
@@ -305,8 +317,22 @@ export default function DashboardPage() {
 					)}
 				</CardContent>
 			</Card>
+		)}
 
-			{/* 班组排行 + 待补考清单 */}
+		{/* 显示开关 */}
+		{!showExamType && data.exam_type_stats.length > 0 && (
+			<div className="flex justify-end mb-2">
+				<button
+					onClick={() => setShowExamType(true)}
+					className="text-xs text-[#1677ff] hover:underline flex items-center gap-1"
+				>
+					<BarChart3 className="w-3 h-3" />
+					显示各考试类型分布
+				</button>
+			</div>
+		)}
+
+		{/* 班组排行 + 待补考清单 */}
 			<div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 				<Card className="brand-card lg:col-span-2 border-0">
 					<CardHeader className="pb-2 flex flex-row items-center justify-between">
