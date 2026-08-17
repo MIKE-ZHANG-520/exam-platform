@@ -480,71 +480,50 @@ export default function MaterialDetailPage() {
 		const timer = setInterval(() => setGenBankElapsed((s) => s + 1), 1000)
 
 		try {
-			// 提交任务到后台队列
-			const submitRes = await apiPost<{ success: boolean; task_id: string; bank_id: string; message: string }>(
-				`/api/materials/${id}/generate-questions`,
-				{ difficulty, count: 40, note },
+			// 使用同步 API（start/poll/finalize）
+			const startRes = await apiPost<{ success: boolean; bank_id: string; chat_id: string; conversation_id: string; total_batches: number }>(
+				`/api/materials/${id}/questions`,
+				{ action: "start", difficulty, note, batchIndex: 0 },
 			)
 
-			if (!submitRes.success || !submitRes.task_id) {
-				throw new Error("提交任务失败")
+			if (!startRes.success || !startRes.bank_id) {
+				throw new Error("启动生成失败")
 			}
 
-			const taskId = submitRes.task_id
-			toast.info("题库生成任务已提交，等待 Worker 处理...")
+			const bankId = startRes.bank_id
+			const chatId = startRes.chat_id
+			const conversationId = startRes.conversation_id
+			const totalBatches = startRes.total_batches
+			setGenBankTotal(totalBatches)
 
-			// 轮询任务状态
-			const pollInterval = 3000 // 3秒
-			const maxPollTime = 10 * 60 * 1000 // 10分钟
-			const startTime = Date.now()
-
-			while (Date.now() - startTime < maxPollTime) {
-				await new Promise((r) => setTimeout(r, pollInterval))
-
-				const taskRes = await apiGet<{
-					success: boolean
-					task: {
-						status: string
-						progress?: { current?: number; total?: number; message?: string }
-						error_message?: string
-						result?: { total_generated?: number; questions?: unknown[] }
-					}
-				}>(`/api/tasks/${taskId}`)
-
-				const task = taskRes.task
-
-				// 更新进度显示
-				if (task.progress) {
-					setGenBankBatch(task.progress.current || 0)
-					setGenBankTotal(task.progress.total || 40)
+			// 轮询每一批
+			for (let batch = 0; batch < totalBatches; batch++) {
+				setGenBankBatch(batch + 1)
+				
+				// 等待当前批次完成
+				let attempts = 0
+				while (attempts < 60) {
+					await new Promise((r) => setTimeout(r, 2000))
+					attempts++
+					
+					const pollRes = await apiPost<{ success: boolean; done: boolean; questions?: unknown[] }>(
+						`/api/materials/${id}/questions`,
+						{ action: "poll", bankId, batchIndex: batch, chatId, conversationId },
+					)
+					
+					if (pollRes.done) break
 				}
-
-				if (task.status === "completed") {
-					const totalGenerated = task.result?.total_generated || task.result?.questions?.length || 0
-					setGenBankTotal(totalGenerated)
-					toast.success(`${difficulty === "easy" ? "简易" : "中等"}题库已生成 ${totalGenerated} 题`)
-					load()
-					break
-				}
-
-				if (task.status === "failed") {
-					throw new Error(task.error_message || "题库生成失败")
-				}
-
-				// 继续轮询
 			}
 
-			if (Date.now() - startTime >= maxPollTime) {
-				toast.warning("任务超时，请刷新页面查看结果")
-			}
-		} catch (e) {
-			toast.error((e as Error).message)
+			// 完成
+			await apiPost(`/api/materials/${id}/questions`, { action: "finalize", bankId, chatId, conversationId })
+			toast.success("题库生成完成")
+			await load()
+		} catch (err) {
+			toast.error(`题库生成失败：${err instanceof Error ? err.message : String(err)}`)
 		} finally {
-			clearInterval(timer)
 			setGenBank(null)
-			setGenBankElapsed(0)
-			setGenBankBatch(0)
-			setGenBankTotal(0)
+			clearInterval(timer)
 		}
 	}
 
