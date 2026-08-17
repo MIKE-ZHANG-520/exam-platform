@@ -481,19 +481,19 @@ export default function MaterialDetailPage() {
 
 		try {
 			// 使用同步 API（start/poll/finalize）
-			const startRes = await apiPost<{ success: boolean; bank_id: string; chat_id: string; conversation_id: string; total_batches: number }>(
+			const startRes = await apiPost<{ chatId: string; conversationId: string; bankId: string; batchIndex: number; totalBatches: number }>(
 				`/api/materials/${id}/questions`,
 				{ action: "start", difficulty, note, batchIndex: 0 },
 			)
 
-			if (!startRes.success || !startRes.bank_id) {
+			if (!startRes.bankId) {
 				throw new Error("启动生成失败")
 			}
 
-			const bankId = startRes.bank_id
-			const chatId = startRes.chat_id
-			const conversationId = startRes.conversation_id
-			const totalBatches = startRes.total_batches
+			const bankId = startRes.bankId
+			const chatId = startRes.chatId
+			const conversationId = startRes.conversationId
+			const totalBatches = startRes.totalBatches
 			setGenBankTotal(totalBatches)
 
 			// 轮询每一批
@@ -506,17 +506,23 @@ export default function MaterialDetailPage() {
 					await new Promise((r) => setTimeout(r, 2000))
 					attempts++
 					
-					const pollRes = await apiPost<{ success: boolean; done: boolean; questions?: unknown[] }>(
+					const pollRes = await apiPost<{ status: string; ready: boolean }>(
 						`/api/materials/${id}/questions`,
-						{ action: "poll", bankId, batchIndex: batch, chatId, conversationId },
+						{ action: "poll", chatId, conversationId },
 					)
 					
-					if (pollRes.done) break
+					if (pollRes.ready) break
 				}
+
+				// 完成当前批次
+				const finalizeRes = await apiPost<{ generated: number; totalGenerated: number; done: boolean }>(
+					`/api/materials/${id}/questions`,
+					{ action: "finalize", chatId, conversationId, bankId, batchIndex: batch, difficulty },
+				)
+				
+				if (finalizeRes.done) break
 			}
 
-			// 完成
-			await apiPost(`/api/materials/${id}/questions`, { action: "finalize", bankId, chatId, conversationId })
 			toast.success("题库生成完成")
 			await load()
 		} catch (err) {
