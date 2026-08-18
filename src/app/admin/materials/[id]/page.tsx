@@ -661,7 +661,7 @@ export default function MaterialDetailPage() {
 					>
 						{genBank === "easy" ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Sparkles className="w-4 h-4 mr-1.5" />}
 						{genBank === "easy"
-							? `生成中 ${genBankBatch}/8 · 已产出 ${genBankTotal} 题（${genBankElapsed}s）`
+							? `生成中 ${genBankBatch}/${genBankTotal} · 已产出 ${genBankTotal} 题（${genBankElapsed}s）`
 							: "AI 生成简易题库"}
 					</Button>
 					<Button
@@ -672,7 +672,7 @@ export default function MaterialDetailPage() {
 					>
 						{genBank === "medium" ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Sparkles className="w-4 h-4 mr-1.5" />}
 						{genBank === "medium"
-							? `生成中 ${genBankBatch}/8 · 已产出 ${genBankTotal} 题（${genBankElapsed}s）`
+							? `生成中 ${genBankBatch}/${genBankTotal} · 已产出 ${genBankTotal} 题（${genBankElapsed}s）`
 							: "AI 生成中等题库"}
 					</Button>
 				</div>
