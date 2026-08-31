@@ -451,17 +451,34 @@ async function handleFinalize(body: {
     console.warn(`[questions] batch ${batchIndex + 1} 去重：${cleaned.length} → ${deduped.length}`);
   }
 
+  // 项目名称替换：AI 生成的题目可能包含错误的项目名，统一替换
+  const PROJECT_NAME_REPLACEMENTS: [string, string][] = [
+    ["苏州项目", "盐城项目"],
+    ["中闽大秦", "总包"],
+  ];
+
+  const replaceProjectNames = (text: string): string => {
+    let result = text;
+    for (const [from, to] of PROJECT_NAME_REPLACEMENTS) {
+      result = result.replaceAll(from, to);
+    }
+    return result;
+  };
+
   const rows = deduped.map((q, idx) => {
     const explanation = q.explanation
       ? q.risk_level && q.tag
-        ? `【${riskLabel(q.risk_level)} · ${q.tag}】\n${q.explanation}`
-        : q.explanation
+        ? `【${riskLabel(q.risk_level)} · ${q.tag}】\n${replaceProjectNames(q.explanation)}`
+        : replaceProjectNames(q.explanation)
       : null;
     return {
       bank_id: bankId,
       type: q.type,
-      content: q.content,
-      options: q.options,
+      content: replaceProjectNames(q.content),
+      options: q.options.map((o) => ({
+        key: o.key,
+        text: replaceProjectNames(o.text),
+      })),
       answer: q.answer,
       explanation,
       order_no: startOrder + idx + 1,
