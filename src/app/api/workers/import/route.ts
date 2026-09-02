@@ -15,6 +15,9 @@ import { logOperation, getClientIp, getUserAgent, OperationAction } from "@/lib/
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
+// 版本指纹：所有响应都带版本号，用于验证部署是否生效
+const APP_VERSION = "v2.3.3";
+
 interface ImportRowResult {
   row: number;
   name?: string;
@@ -118,20 +121,22 @@ export async function POST(request: NextRequest) {
   try {
     await requireAdmin();
   } catch {
-    return NextResponse.json({ error: "无权限，仅管理员可操作" }, { status: 403 });
+    return NextResponse.json({ error: `[${APP_VERSION}] 无权限，仅管理员可操作` }, { status: 403 });
   }
 
   let formData: FormData;
   try {
     formData = await request.formData();
   } catch {
-    return NextResponse.json({ error: "解析表单失败" }, { status: 400 });
+    return NextResponse.json({ error: `[${APP_VERSION}] 解析表单失败` }, { status: 400 });
   }
   const file = formData.get("file") as File | null;
   const projectId = ((formData.get("project_id") as string | null) || "").trim();
   const teamIdInput = ((formData.get("team_id") as string | null) || "").trim();
 
-  if (!file) return NextResponse.json({ error: "缺少文件" }, { status: 400 });
+  console.log(`[workers/import] ${APP_VERSION} 收到导入请求: file=${file?.name ?? "none"}, size=${file?.size ?? 0}`);
+
+  if (!file) return NextResponse.json({ error: `[${APP_VERSION}] 缺少文件` }, { status: 400 });
 
   const arrayBuffer = await file.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
@@ -140,11 +145,11 @@ export async function POST(request: NextRequest) {
   try {
     workbook = XLSX.read(buffer, { type: "buffer", cellDates: true });
   } catch (e: unknown) {
-    return NextResponse.json({ error: `Excel 解析失败：${(e as Error).message}` }, { status: 400 });
+    return NextResponse.json({ error: `[${APP_VERSION}] Excel 解析失败：${(e as Error).message}` }, { status: 400 });
   }
 
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
-  if (!sheet) return NextResponse.json({ error: "工作簿为空" }, { status: 400 });
+  if (!sheet) return NextResponse.json({ error: `[${APP_VERSION}] 工作簿为空` }, { status: 400 });
 
   // 处理合并单元格
   const merges = sheet["!merges"] || [];
@@ -171,16 +176,20 @@ export async function POST(request: NextRequest) {
   }) as unknown[][];
 
   if (rawRows.length < 2) {
-    return NextResponse.json({ error: "表格中未找到数据行" }, { status: 400 });
+    return NextResponse.json({ error: `[${APP_VERSION}] 表格中未找到数据行` }, { status: 400 });
   }
 
   // 查找表头行
   const headerResult = findHeaderRow(rawRows);
   if (!headerResult) {
+    // 输出前 5 行内容到日志，便于诊断表头识别失败原因
+    console.error(`[workers/import] ${APP_VERSION} 表头识别失败，前 5 行内容:`, JSON.stringify(rawRows.slice(0, 5)));
     return NextResponse.json({
-      error: "无法识别表头，请确保表格包含「姓名」「身份证号」等列名",
+      error: `[${APP_VERSION}] 无法识别表头，请确保表格包含「姓名」「身份证号」等列名`,
     }, { status: 400 });
   }
+
+  console.log(`[workers/import] ${APP_VERSION} 表头行识别成功: headerIdx=${headerResult.headerIdx}, colMap=${JSON.stringify(headerResult.colMap)}`);
 
   const { headerIdx, colMap } = headerResult;
   const dataRows = rawRows.slice(headerIdx + 1);
@@ -194,7 +203,7 @@ export async function POST(request: NextRequest) {
   }
 
   if (workersData.length === 0) {
-    return NextResponse.json({ error: "未能从表格中提取到有效的工人数据" }, { status: 400 });
+    return NextResponse.json({ error: `[${APP_VERSION}] 未能从表格中提取到有效的工人数据` }, { status: 400 });
   }
 
   const client = db();
@@ -288,7 +297,7 @@ export async function POST(request: NextRequest) {
     if (toInsert.length > 0) {
       const { error } = await client.from("workers").insert(toInsert);
       if (error) {
-        return NextResponse.json({ error: `批量写入失败：${error.message}` }, { status: 500 });
+        return NextResponse.json({ error: `[${APP_VERSION}] 批量写入失败：${error.message}` }, { status: 500 });
       }
       insertedCount = toInsert.length;
     }
@@ -313,7 +322,10 @@ export async function POST(request: NextRequest) {
     });
   }
 
+  console.log(`[workers/import] ${APP_VERSION} 导入完成: total=${workersData.length}, success=${insertedCount}, skipped=${results.filter((r) => r.status !== "success").length}`);
+
   return NextResponse.json({
+    version: APP_VERSION,
     total: workersData.length,
     success: insertedCount,
     updated: 0,
