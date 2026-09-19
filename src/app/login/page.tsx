@@ -52,15 +52,15 @@ function LoginForm() {
 	}
 
 	return (
-		<div className="min-h-screen relative overflow-hidden flex items-center justify-center bg-[#f5f7fa]">
-			{/* 装饰背景 */}
-			<div className="absolute inset-0 pointer-events-none">
+		<div className="min-h-svh relative flex justify-center bg-[#f5f7fa] px-4 py-8">
+			{/* 装饰背景（独立裁切层，不影响页面滚动） */}
+			<div className="absolute inset-0 overflow-hidden pointer-events-none">
 				<div className="absolute top-[-120px] left-[-120px] w-[420px] h-[420px] rounded-full bg-[#1677ff] opacity-15 blur-3xl" />
 				<div className="absolute bottom-[-120px] right-[-120px] w-[420px] h-[420px] rounded-full bg-[#0958d9] opacity-15 blur-3xl" />
 				<div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(22,119,255,0.04),rgba(255,255,255,0)_60%)]" />
 			</div>
 
-			<div className="relative z-10 w-full max-w-[960px] mx-4 grid grid-cols-1 md:grid-cols-2 rounded-2xl overflow-hidden bg-white shadow-[0_20px_60px_rgba(15,23,42,0.12)] border border-white/60">
+			<div className="relative z-10 w-full max-w-[960px] grid grid-cols-1 md:grid-cols-2 rounded-xl md:rounded-2xl overflow-hidden bg-white shadow-[0_20px_60px_rgba(15,23,42,0.12)] border border-white/60 my-auto">
 				{/* 左侧品牌区 */}
 				<div className="hidden md:flex flex-col justify-between p-10 brand-header-gradient text-white relative">
 					<div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_20%_20%,white,transparent_50%)]" />
@@ -84,8 +84,8 @@ function LoginForm() {
 				</div>
 
 				{/* 右侧登录表单 */}
-				<div className="p-8 md:p-10">
-					<div className="mb-6">
+				<div className="p-6 sm:p-8 md:p-10">
+					<div className="mb-5 md:mb-6">
 						<div className="inline-flex items-center gap-2 text-[#1677ff]">
 							<div className="w-9 h-9 rounded-lg brand-header-gradient flex items-center justify-center">
 								<GraduationCap className="w-5 h-5 text-white" />
@@ -102,7 +102,9 @@ function LoginForm() {
 								<User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
 								<Input
 									id="username"
-									className="pl-9 h-10 brand-input"
+									inputMode="text"
+									autoComplete="username"
+									className="pl-9 h-11 md:h-10 text-base brand-input"
 									placeholder="请输入账号"
 									value={username}
 									onChange={(e) => setUsername(e.target.value)}
@@ -117,7 +119,8 @@ function LoginForm() {
 								<Input
 									id="password"
 									type="password"
-									className="pl-9 h-10 brand-input"
+									autoComplete="current-password"
+									className="pl-9 h-11 md:h-10 text-base brand-input"
 									placeholder="请输入密码"
 									value={password}
 									onChange={(e) => setPassword(e.target.value)}
@@ -133,7 +136,7 @@ function LoginForm() {
 							<span className="text-xs text-gray-400">忘记密码请联系管理员</span>
 						</div>
 						<Button
-							className="w-full h-10 bg-[#1677ff] hover:bg-[#0958d9] shadow-[0_6px_20px_rgba(22,119,255,0.35)]"
+							className="w-full h-11 md:h-10 text-base md:text-sm bg-[#1677ff] hover:bg-[#0958d9] shadow-[0_6px_20px_rgba(22,119,255,0.35)]"
 							onClick={submit}
 							disabled={loading}
 						>
@@ -143,7 +146,7 @@ function LoginForm() {
 				</div>
 			</div>
 
-			<p className="absolute bottom-4 text-xs text-gray-400 z-10 flex flex-col items-center gap-2">
+			<p className="absolute bottom-3 left-0 right-0 text-center text-xs text-gray-400 z-10">
 				© {new Date().getFullYear()} 智慧培训考试平台 · Powered by 才子佳人
 			</p>
 		</div>

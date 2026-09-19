@@ -189,6 +189,11 @@ src/
 - **工人档案页**：状态卡手机 2 列、Tabs 缩小、头部可换行
 - **其他**：dashboard 图例换行、根 layout 显式 viewport 声明、DESIGN.md 沉淀移动端适配规范
 
+### v2.6.1 (2026-09-19)
+- **修复**：登录页手机端布局——`min-h-svh`（键盘弹起不塌陷）、容器允许滚动（去 overflow-hidden）、`my-auto` 替代 items-center（内容超高不再裁切顶部）、版权真正居中不与卡片重叠
+- **触控优化**：手机端输入框/按钮 h-11（44px 触控标准）+ text-base 防 iOS 聚焦缩放
+- **适配**：手机端表单 padding 收窄（p-6）、圆角 rounded-xl、补 autoComplete
+
 ### v2.5.0 (2026-09-19)
 - **新增**：全量数据备份/恢复体系（`scripts/backup.ts` + `scripts/restore.ts` + `scripts/backup-lib.ts`），18 张业务表单文件 gzip 备份，对象存储双副本 + md5 回读校验 + ID 集合校验和，恢复支持 dry-run 预览与 pre-restore 自动兜底
 - **新增**：版本号管理规范（package.json version 与备份版本联动，每次更新必须记录版本历史）
