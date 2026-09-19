@@ -133,19 +133,19 @@ export default function UsersPage() {
 							<TableHeader>
 								<TableRow className="bg-gray-50/60">
 									<TableHead>用户名</TableHead>
-									<TableHead>姓名</TableHead>
+									<TableHead className="hidden md:table-cell">姓名</TableHead>
 									<TableHead>角色</TableHead>
-									<TableHead>部门/班组</TableHead>
+									<TableHead className="hidden md:table-cell">部门/班组</TableHead>
 									<TableHead>状态</TableHead>
-									<TableHead>创建时间</TableHead>
+									<TableHead className="hidden md:table-cell">创建时间</TableHead>
 									<TableHead className="text-right">操作</TableHead>
 								</TableRow>
 							</TableHeader>
 							<TableBody>
 								{items.map((u, i) => (
 									<TableRow key={u.id} className={i % 2 === 1 ? "bg-gray-50/30" : ""}>
-										<TableCell className="font-medium text-gray-900">{u.username}</TableCell>
-										<TableCell>{u.real_name || "-"}</TableCell>
+										<TableCell className="font-medium text-gray-900"><div>{u.username}</div><div className="md:hidden text-xs text-gray-500 font-normal">{u.real_name || "-"}</div></TableCell>
+										<TableCell className="hidden md:table-cell">{u.real_name || "-"}</TableCell>
 										<TableCell>
 											{u.role === "admin" ? (
 												<Badge className="bg-blue-50 text-[#1677ff] border border-blue-200">
@@ -157,7 +157,7 @@ export default function UsersPage() {
 												</Badge>
 											)}
 										</TableCell>
-										<TableCell className="text-gray-600">{u.department || "-"}</TableCell>
+										<TableCell className="hidden md:table-cell text-gray-600">{u.department || "-"}</TableCell>
 										<TableCell>
 											{u.disabled ? (
 												<span className="text-xs text-gray-400">已禁用</span>
@@ -165,7 +165,7 @@ export default function UsersPage() {
 												<span className="text-xs text-emerald-600">正常</span>
 											)}
 										</TableCell>
-										<TableCell className="text-gray-500">{fmtDate(u.created_at)}</TableCell>
+										<TableCell className="hidden md:table-cell text-gray-500">{fmtDate(u.created_at)}</TableCell>
 										<TableCell className="text-right">
 											<Button variant="ghost" size="sm" onClick={() => openEdit(u)} className="hover:text-[#1677ff]">
 												<Pencil className="w-4 h-4" />

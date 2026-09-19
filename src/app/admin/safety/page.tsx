@@ -243,6 +243,39 @@ export default function SafetyManagementPage() {
 							<p className="text-xs mt-1">请先在花名册中添加工人</p>
 						</div>
 					) : (
+						<>
+						{/* 手机端卡片视图 */}
+						<div className="md:hidden divide-y divide-gray-100">
+							{filtered.map((p) => (
+								<div key={p.id} className="p-4 space-y-2.5">
+									<div className="flex items-start justify-between gap-2">
+										<div className="min-w-0">
+											<div className="flex items-center gap-2 flex-wrap">
+												<span className="font-medium text-gray-900">{p.worker_name}</span>
+												{getStatusBadge(p.profile_status)}
+											</div>
+											<p className="text-xs text-gray-500 mt-1">
+												{p.work_type || "未填工种"} · {p.project_name || "-"}
+												{p.team_name ? ` · ${p.team_name}` : ""}
+											</p>
+										</div>
+										{getEntryBadge(p.entry_status)}
+									</div>
+									<div className="flex items-center justify-between">
+										<span className="text-xs text-gray-400">
+											证件到期：{p.certificate_expiry ? new Date(p.certificate_expiry).toLocaleDateString("zh-CN") : "-"}
+										</span>
+										<Link href={`/admin/workers/${p.worker_id}/profile`}>
+											<Button variant="outline" size="sm" className="h-8 text-[#1677ff] border-[#1677ff]/30 hover:bg-blue-50">
+												管理档案
+											</Button>
+										</Link>
+									</div>
+								</div>
+							))}
+						</div>
+						{/* 桌面端表格视图 */}
+						<div className="hidden md:block">
 						<Table>
 							<TableHeader>
 								<TableRow>
@@ -295,6 +328,8 @@ export default function SafetyManagementPage() {
 								))}
 							</TableBody>
 						</Table>
+						</div>
+						</>
 					)}
 				</CardContent>
 			</Card>

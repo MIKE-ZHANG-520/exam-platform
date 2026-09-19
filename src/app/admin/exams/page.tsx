@@ -248,7 +248,7 @@ export default function ExamsPage() {
 				<div className="bg-white rounded-xl shadow-lg shadow-gray-200/50 border border-gray-100 overflow-hidden">
 					{/* 表头 */}
 					<div className="bg-gradient-to-r from-slate-50 to-gray-50 border-b border-gray-200">
-						<div className="grid grid-cols-[1fr_100px_100px_100px_100px_120px_200px] gap-4 px-6 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wider">
+						<div className="hidden md:grid grid-cols-[1fr_100px_100px_100px_100px_120px_200px] gap-4 px-6 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wider">
 							<div>试卷名称</div>
 							<div>类型</div>
 							<div>时长</div>
@@ -264,10 +264,10 @@ export default function ExamsPage() {
 						{filtered.map((exam) => (
 							<div
 								key={exam.id}
-								className="grid grid-cols-[1fr_100px_100px_100px_100px_120px_200px] gap-4 px-6 py-4 items-center hover:bg-gradient-to-r hover:from-blue-50/50 hover:to-transparent transition-all duration-200 group"
+								className="grid grid-cols-2 md:grid-cols-[1fr_100px_100px_100px_100px_120px_200px] gap-x-4 gap-y-2.5 px-4 md:px-6 py-4 md:items-center hover:bg-gradient-to-r hover:from-blue-50/50 hover:to-transparent transition-all duration-200 group"
 							>
 								{/* 名称 */}
-								<div className="flex items-center gap-3 min-w-0">
+								<div className="col-span-2 md:col-span-1 flex items-center gap-3 min-w-0">
 									<div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 shadow-sm border ${
 										exam.paper_type === "A"
 											? "bg-gradient-to-br from-emerald-50 to-emerald-100 border-emerald-100"
@@ -286,7 +286,7 @@ export default function ExamsPage() {
 								</div>
 
 								{/* 类型 */}
-								<div>
+								<div><span className="md:hidden block text-[10px] text-gray-400 mb-0.5">类型</span>
 									<Badge className={
 										exam.paper_type === "A"
 											? "bg-emerald-50 text-emerald-700 border-emerald-200"
@@ -297,34 +297,34 @@ export default function ExamsPage() {
 								</div>
 
 								{/* 时长 */}
-								<div className="text-sm text-gray-600 flex items-center gap-1.5">
+								<div className="text-sm text-gray-600 flex items-center gap-1.5"><span className="md:hidden block text-[10px] text-gray-400 mb-0.5">时长</span>
 									<Clock className="w-3.5 h-3.5 text-gray-400" />
 									<span className="tabular-nums font-medium">{exam.duration_min}</span>
 									<span className="text-gray-400">min</span>
 								</div>
 
 								{/* 及格分 */}
-								<div className="text-sm text-gray-600 flex items-center gap-1.5">
+								<div className="text-sm text-gray-600 flex items-center gap-1.5"><span className="md:hidden block text-[10px] text-gray-400 mb-0.5">及格分</span>
 									<Target className="w-3.5 h-3.5 text-gray-400" />
 									<span className="tabular-nums font-medium">{exam.pass_score}</span>
 									<span className="text-gray-400">分</span>
 								</div>
 
 								{/* 机会 */}
-								<div className="text-sm text-gray-600 flex items-center gap-1.5">
+								<div className="text-sm text-gray-600 flex items-center gap-1.5"><span className="md:hidden block text-[10px] text-gray-400 mb-0.5">机会</span>
 									<RefreshCw className="w-3.5 h-3.5 text-gray-400" />
 									<span className="tabular-nums font-medium">{exam.max_attempts}</span>
 									<span className="text-gray-400">次</span>
 								</div>
 
 								{/* 时间 */}
-								<div className="text-sm text-gray-500 flex items-center gap-1.5">
+								<div className="text-sm text-gray-500 flex items-center gap-1.5"><span className="md:hidden block text-[10px] text-gray-400 mb-0.5">创建时间</span>
 									<Calendar className="w-3.5 h-3.5 text-gray-400" />
 									{fmtDate(exam.created_at)}
 								</div>
 
 								{/* 操作 */}
-								<div className="flex items-center justify-end gap-2">
+								<div className="col-span-2 md:col-span-1 flex flex-wrap items-center justify-start md:justify-end gap-2 pt-2.5 md:pt-0 mt-1.5 md:mt-0 border-t border-gray-100 md:border-0">
 									<Button
 										size="sm"
 										variant="outline"

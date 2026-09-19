@@ -273,44 +273,44 @@ function RecordsInner() {
         subtitle="工人考试的所有详细记录，可搜索导出"
         icon={<FileText className="h-5 w-5" />}
         right={
-          <div className="flex items-center gap-2">
-            <div className="flex items-center rounded-lg border border-gray-200 p-0.5 bg-gray-50">
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+            <div className="flex items-center rounded-lg border border-gray-200 p-0.5 bg-gray-50 overflow-x-auto no-scrollbar max-w-full">
               <button
                 onClick={() => setViewMode("flat")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-all ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-all whitespace-nowrap ${
                   viewMode === "flat"
                     ? "bg-white text-[#1677ff] shadow-sm"
                     : "text-gray-500 hover:text-gray-700"
                 }`}
               >
                 <LayoutList className="w-4 h-4" />
-                列表
+                <span className="hidden sm:inline">列表</span>
               </button>
               <button
                 onClick={() => setViewMode("grouped")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-all ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-all whitespace-nowrap ${
                   viewMode === "grouped"
                     ? "bg-white text-[#1677ff] shadow-sm"
                     : "text-gray-500 hover:text-gray-700"
                 }`}
               >
                 <Layers className="w-4 h-4" />
-                按试卷分组
+                <span className="hidden sm:inline">按试卷分组</span>
               </button>
               <button
                 onClick={() => setViewMode("byPerson")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-all ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-all whitespace-nowrap ${
                   viewMode === "byPerson"
                     ? "bg-white text-[#1677ff] shadow-sm"
                     : "text-gray-500 hover:text-gray-700"
                 }`}
               >
                 <Users className="w-4 h-4" />
-                按班组分类
+                <span className="hidden sm:inline">按班组分类</span>
               </button>
             </div>
             <Button variant="outline" onClick={exportCsv} disabled={items.length === 0} className="hover:border-[#1677ff] hover:text-[#1677ff]">
-              <Download className="mr-1 h-4 w-4" /> 导出 CSV
+              <Download className="mr-1 h-4 w-4" /> <span className="hidden sm:inline">导出 CSV</span><span className="sm:hidden">导出</span>
             </Button>
           </div>
         }
@@ -387,17 +387,81 @@ function RecordsInner() {
                 <p className="text-xs text-gray-400 mt-1">工人完成考试后记录会在这里展示</p>
               </div>
             ) : (
+              <>
+                {/* 手机端卡片视图 */}
+                <div className="md:hidden divide-y divide-gray-100">
+                  {items.map((r) => (
+                    <div key={r.id} className="p-4 space-y-2.5">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-gray-900 truncate">{r.candidate_name}</span>
+                            {r.is_pass === null ? (
+                              <Badge className="bg-orange-50 text-orange-700 border border-orange-200 shrink-0">未完成</Badge>
+                            ) : r.is_pass ? (
+                              <Badge className="bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">通过</Badge>
+                            ) : (
+                              <Badge className="bg-red-50 text-red-700 border border-red-200 shrink-0">未通过</Badge>
+                            )}
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1 truncate">{r.exam_title || "-"}</p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <span className="text-xl font-bold tabular-nums text-gray-900">{r.score ?? "-"}</span>
+                          <span className="text-xs text-gray-400 ml-0.5">分</span>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 text-xs">
+                        <div className="bg-gray-50 rounded-lg px-2 py-1.5">
+                          <div className="text-gray-400">班组</div>
+                          <div className="text-gray-700 truncate">{r.team || "-"}</div>
+                        </div>
+                        <div className="bg-gray-50 rounded-lg px-2 py-1.5">
+                          <div className="text-gray-400">第几次</div>
+                          <div className="text-gray-700">第 {r.attempt_no} 次</div>
+                        </div>
+                        <div className="bg-gray-50 rounded-lg px-2 py-1.5">
+                          <div className="text-gray-400">用时</div>
+                          <div className="text-gray-700">{fmtDuration(r.duration_sec)}</div>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-gray-400">{fmtDate(r.created_at)}</span>
+                        <div className="flex gap-1">
+                          <Link href={`/admin/records/${r.id}`}>
+                            <Button variant="outline" size="sm" className="h-8 text-[#1677ff] border-[#1677ff]/30 hover:bg-blue-50">
+                              <Eye className="mr-1 h-3.5 w-3.5" /> 详情
+                            </Button>
+                          </Link>
+                          {r.is_pass === false && (
+                            <Button variant="outline" size="sm" onClick={() => openRetakeQr(r.exam_id, r.exam_title || "考试")} className="h-8 text-[#1677ff] border-[#1677ff]/30 hover:bg-blue-50">
+                              <RotateCcw className="mr-1 h-3.5 w-3.5" /> 补考
+                            </Button>
+                          )}
+                          {userRole === "admin" && (
+                            <Button variant="outline" size="sm" onClick={() => deleteRecord(r.id)} className="h-8 text-red-500 border-red-200 hover:bg-red-50">
+                              <Trash2 className="mr-1 h-3.5 w-3.5" /> 删除
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* 桌面端表格视图 */}
+                <div className="hidden md:block">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-gray-50/60">
                     <TableHead>姓名</TableHead>
-                    <TableHead>班组</TableHead>
+                    <TableHead className="hidden md:table-cell">班组</TableHead>
                     <TableHead>试卷</TableHead>
                     <TableHead className="text-right">得分</TableHead>
                     <TableHead>结果</TableHead>
-                    <TableHead>次数</TableHead>
-                    <TableHead>用时</TableHead>
-                    <TableHead>考试时间</TableHead>
+                    <TableHead className="hidden md:table-cell">次数</TableHead>
+                    <TableHead className="hidden md:table-cell">用时</TableHead>
+                    <TableHead className="hidden md:table-cell">考试时间</TableHead>
                     <TableHead className="text-right">操作</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -405,7 +469,7 @@ function RecordsInner() {
                   {items.map((r, i) => (
                     <TableRow key={r.id} className={i % 2 === 1 ? "bg-gray-50/30" : ""}>
                       <TableCell className="font-medium text-gray-900">{r.candidate_name}</TableCell>
-                      <TableCell className="text-gray-600">{r.team || "-"}</TableCell>
+                      <TableCell className="hidden md:table-cell text-gray-600">{r.team || "-"}</TableCell>
                       <TableCell className="text-gray-600">{r.exam_title || "-"}</TableCell>
                       <TableCell className="text-right tabular-nums font-semibold text-gray-900">{r.score ?? "-"}</TableCell>
                       <TableCell>
@@ -417,9 +481,9 @@ function RecordsInner() {
                           <Badge className="bg-red-50 text-red-700 border border-red-200">未通过</Badge>
                         )}
                       </TableCell>
-                      <TableCell className="text-gray-600">第 {r.attempt_no} 次</TableCell>
-                      <TableCell className="text-gray-600">{fmtDuration(r.duration_sec)}</TableCell>
-                      <TableCell className="text-gray-500">{fmtDate(r.created_at)}</TableCell>
+                      <TableCell className="hidden md:table-cell text-gray-600">第 {r.attempt_no} 次</TableCell>
+                      <TableCell className="hidden md:table-cell text-gray-600">{fmtDuration(r.duration_sec)}</TableCell>
+                      <TableCell className="hidden md:table-cell text-gray-500">{fmtDate(r.created_at)}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
                           <Link href={`/admin/records/${r.id}`}>
@@ -443,6 +507,8 @@ function RecordsInner() {
                   ))}
                 </TableBody>
               </Table>
+                </div>
+              </>
             )}
           </CardContent>
         </Card>
@@ -532,12 +598,12 @@ function RecordsInner() {
                           <TableHeader>
                             <TableRow className="bg-gray-50/60">
                               <TableHead>姓名</TableHead>
-                              <TableHead>班组</TableHead>
+                              <TableHead className="hidden md:table-cell">班组</TableHead>
                               <TableHead className="text-right">得分</TableHead>
                               <TableHead>结果</TableHead>
-                              <TableHead>次数</TableHead>
-                              <TableHead>用时</TableHead>
-                              <TableHead>考试时间</TableHead>
+                              <TableHead className="hidden md:table-cell">次数</TableHead>
+                              <TableHead className="hidden md:table-cell">用时</TableHead>
+                              <TableHead className="hidden md:table-cell">考试时间</TableHead>
                               <TableHead className="text-right">操作</TableHead>
                             </TableRow>
                           </TableHeader>
@@ -545,7 +611,7 @@ function RecordsInner() {
                             {group.records.map((r, i) => (
                               <TableRow key={r.id} className={i % 2 === 1 ? "bg-gray-50/30" : ""}>
                                 <TableCell className="font-medium text-gray-900">{r.candidate_name}</TableCell>
-                                <TableCell className="text-gray-600">{r.team || "-"}</TableCell>
+                                <TableCell className="hidden md:table-cell text-gray-600">{r.team || "-"}</TableCell>
                                 <TableCell className="text-right tabular-nums font-semibold text-gray-900">{r.score ?? "-"}</TableCell>
                                 <TableCell>
                                   {r.is_pass === null ? (
@@ -556,9 +622,9 @@ function RecordsInner() {
                                     <Badge className="bg-red-50 text-red-700 border border-red-200">未通过</Badge>
                                   )}
                                 </TableCell>
-                                <TableCell className="text-gray-600">第 {r.attempt_no} 次</TableCell>
-                                <TableCell className="text-gray-600">{fmtDuration(r.duration_sec)}</TableCell>
-                                <TableCell className="text-gray-500">{fmtDate(r.created_at)}</TableCell>
+                                <TableCell className="hidden md:table-cell text-gray-600">第 {r.attempt_no} 次</TableCell>
+                                <TableCell className="hidden md:table-cell text-gray-600">{fmtDuration(r.duration_sec)}</TableCell>
+                                <TableCell className="hidden md:table-cell text-gray-500">{fmtDate(r.created_at)}</TableCell>
                                 <TableCell className="text-right">
                                   <div className="flex justify-end gap-1">
                                     <Link href={`/admin/records/${r.id}`}>
@@ -664,9 +730,9 @@ function RecordsInner() {
                               <TableHead>试卷</TableHead>
                               <TableHead className="text-right">得分</TableHead>
                               <TableHead>结果</TableHead>
-                              <TableHead>次数</TableHead>
-                              <TableHead>用时</TableHead>
-                              <TableHead>考试时间</TableHead>
+                              <TableHead className="hidden md:table-cell">次数</TableHead>
+                              <TableHead className="hidden md:table-cell">用时</TableHead>
+                              <TableHead className="hidden md:table-cell">考试时间</TableHead>
                               <TableHead className="text-right">操作</TableHead>
                             </TableRow>
                           </TableHeader>
@@ -685,9 +751,9 @@ function RecordsInner() {
                                     <Badge className="bg-red-50 text-red-700 border border-red-200">未通过</Badge>
                                   )}
                                 </TableCell>
-                                <TableCell className="text-gray-600">第 {r.attempt_no} 次</TableCell>
-                                <TableCell className="text-gray-600">{fmtDuration(r.duration_sec)}</TableCell>
-                                <TableCell className="text-gray-500">{fmtDate(r.created_at)}</TableCell>
+                                <TableCell className="hidden md:table-cell text-gray-600">第 {r.attempt_no} 次</TableCell>
+                                <TableCell className="hidden md:table-cell text-gray-600">{fmtDuration(r.duration_sec)}</TableCell>
+                                <TableCell className="hidden md:table-cell text-gray-500">{fmtDate(r.created_at)}</TableCell>
                                 <TableCell className="text-right">
                                   <div className="flex justify-end gap-1">
                                     <Link href={`/admin/records/${r.id}`}>

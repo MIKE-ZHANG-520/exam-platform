@@ -115,7 +115,7 @@ export default function BanksPage() {
 				<div className="bg-white rounded-xl shadow-lg shadow-gray-200/50 border border-gray-100 overflow-hidden">
 					{/* 表头 */}
 					<div className="bg-gradient-to-r from-slate-50 to-gray-50 border-b border-gray-200">
-						<div className="grid grid-cols-[1fr_100px_100px_100px_120px_140px] gap-4 px-6 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wider">
+						<div className="hidden md:grid grid-cols-[1fr_100px_100px_100px_120px_140px] gap-4 px-6 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wider">
 							<div>题库名称</div>
 							<div>难度</div>
 							<div>题目数</div>
@@ -132,10 +132,10 @@ export default function BanksPage() {
 							return (
 								<div
 									key={b.id}
-									className="grid grid-cols-[1fr_100px_100px_100px_120px_140px] gap-4 px-6 py-4 items-center hover:bg-gradient-to-r hover:from-blue-50/50 hover:to-transparent transition-all duration-200 group"
+									className="grid grid-cols-2 md:grid-cols-[1fr_100px_100px_100px_120px_140px] gap-x-4 gap-y-2.5 px-4 md:px-6 py-4 md:items-center hover:bg-gradient-to-r hover:from-blue-50/50 hover:to-transparent transition-all duration-200 group"
 								>
 									{/* 名称 */}
-									<div className="flex items-center gap-3 min-w-0">
+									<div className="col-span-2 md:col-span-1 flex items-center gap-3 min-w-0">
 										<div className="w-10 h-10 rounded-lg bg-gradient-to-br from-indigo-50 to-blue-100 flex items-center justify-center shrink-0 shadow-sm border border-blue-100">
 											<ListTree className="w-5 h-5 text-blue-600" />
 										</div>
@@ -151,7 +151,7 @@ export default function BanksPage() {
 									</div>
 
 									{/* 难度 */}
-									<div>
+									<div><span className="md:hidden block text-[10px] text-gray-400 mb-0.5">难度</span>
 										<Badge
 											className={
 												b.difficulty === "easy"
@@ -165,13 +165,13 @@ export default function BanksPage() {
 									</div>
 
 									{/* 题目数 */}
-									<div className="text-sm font-semibold text-gray-900 tabular-nums">
+									<div className="text-sm font-semibold text-gray-900 tabular-nums"><span className="md:hidden block text-[10px] text-gray-400 mb-0.5">题目数</span>
 										{b.total_count}
 										<span className="text-gray-400 font-normal ml-1">题</span>
 									</div>
 
 									{/* 状态 */}
-									<div>
+									<div><span className="md:hidden block text-[10px] text-gray-400 mb-0.5">状态</span>
 										<Badge
 											className={
 												published
@@ -184,13 +184,13 @@ export default function BanksPage() {
 									</div>
 
 									{/* 时间 */}
-									<div className="text-sm text-gray-500 flex items-center gap-1.5">
+									<div className="text-sm text-gray-500 flex items-center gap-1.5"><span className="md:hidden block text-[10px] text-gray-400 mb-0.5">创建时间</span>
 										<Calendar className="w-3.5 h-3.5 text-gray-400" />
 										{fmtDate(b.created_at)}
 									</div>
 
 									{/* 操作 */}
-									<div className="flex items-center justify-end gap-2">
+									<div className="col-span-2 md:col-span-1 flex flex-wrap items-center justify-start md:justify-end gap-2 pt-2.5 md:pt-0 mt-1.5 md:mt-0 border-t border-gray-100 md:border-0">
 										<Link href={`/admin/banks/${b.id}`}>
 											<Button
 												size="sm"

@@ -429,7 +429,7 @@ export default function WorkerProfilePage() {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <div className="border-b bg-card">
-        <div className="mx-auto flex max-w-[1440px] items-center gap-4 px-6 py-4">
+        <div className="mx-auto flex max-w-[1440px] flex-wrap items-center gap-3 sm:gap-4 px-4 sm:px-6 py-4">
           <Button variant="ghost" size="icon" onClick={() => router.push("/admin/workers")}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
@@ -471,9 +471,9 @@ export default function WorkerProfilePage() {
         </div>
       </div>
 
-      <div className="mx-auto max-w-[1440px] px-6 py-6">
+      <div className="mx-auto max-w-[1440px] px-4 sm:px-6 py-4 sm:py-6">
         {/* Status Overview */}
-        <div className="mb-6 grid grid-cols-4 gap-4">
+        <div className="mb-6 grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
           <StatusCard
             title="资料审核"
             status={profile?.status || "not_created"}
@@ -507,7 +507,7 @@ export default function WorkerProfilePage() {
         </div>
 
         <Tabs defaultValue="documents" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-4 text-xs sm:text-sm">
             <TabsTrigger value="documents">入场资料</TabsTrigger>
             <TabsTrigger value="training">三级教育</TabsTrigger>
             <TabsTrigger value="briefing">入场交底</TabsTrigger>

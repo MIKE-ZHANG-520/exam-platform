@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Inspector } from 'react-dev-inspector';
 import { Toaster } from '@/components/ui/sonner';
 import { GlobalLogo } from '@/components/global-logo';
@@ -10,6 +10,12 @@ export const metadata: Metadata = {
     template: '%s | 智慧培训考试平台',
   },
   description: '企业级培训 + 考试一体化平台：材料智能解析、AI 生成提纲与题库、扫码答题、数据看板。',
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  themeColor: '#1677ff',
 };
 
 export default function RootLayout({

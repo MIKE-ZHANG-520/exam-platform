@@ -368,7 +368,7 @@ export default function MaterialsPage() {
 				<div className="bg-white rounded-xl shadow-lg shadow-gray-200/50 border border-gray-100 overflow-hidden">
 					{/* 表头 */}
 					<div className="bg-gradient-to-r from-slate-50 to-gray-50 border-b border-gray-200">
-						<div className="grid grid-cols-[1fr_120px_100px_100px_120px_180px] gap-4 px-6 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wider">
+						<div className="hidden md:grid grid-cols-[1fr_120px_100px_100px_120px_180px] gap-4 px-6 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wider">
 							<div>材料名称</div>
 							<div>文件类型</div>
 							<div>大小</div>
@@ -385,10 +385,10 @@ export default function MaterialsPage() {
 							return (
 								<div
 									key={m.id}
-									className="grid grid-cols-[1fr_120px_100px_100px_120px_180px] gap-4 px-6 py-4 items-center hover:bg-gradient-to-r hover:from-blue-50/50 hover:to-transparent transition-all duration-200 group"
+									className="grid grid-cols-2 md:grid-cols-[1fr_120px_100px_100px_120px_180px] gap-x-4 gap-y-2.5 px-4 md:px-6 py-4 md:items-center hover:bg-gradient-to-r hover:from-blue-50/50 hover:to-transparent transition-all duration-200 group"
 								>
 									{/* 名称 */}
-									<div className="flex items-center gap-3 min-w-0">
+									<div className="col-span-2 md:col-span-1 flex items-center gap-3 min-w-0">
 										<div className="w-10 h-10 rounded-lg bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center shrink-0 shadow-sm border border-gray-100">
 											{getFileIcon(m.file_type)}
 										</div>
@@ -401,18 +401,18 @@ export default function MaterialsPage() {
 									</div>
 
 									{/* 类型 */}
-									<div className="text-sm text-gray-600 uppercase font-medium">
+									<div className="text-sm text-gray-600 uppercase font-medium"><span className="md:hidden block text-[10px] text-gray-400 mb-0.5">文件类型</span>
 										{m.file_type}
 									</div>
 
 									{/* 大小 */}
-									<div className="text-sm text-gray-600 flex items-center gap-1.5">
+									<div className="text-sm text-gray-600 flex items-center gap-1.5"><span className="md:hidden block text-[10px] text-gray-400 mb-0.5">大小</span>
 										<HardDrive className="w-3.5 h-3.5 text-gray-400" />
 										{formatFileSize(m.file_size)}
 									</div>
 
 									{/* 状态 */}
-									<div>
+									<div><span className="md:hidden block text-[10px] text-gray-400 mb-0.5">状态</span>
 										<Badge className={`${st.className} text-xs font-medium`}>
 											{st.label}
 										</Badge>
@@ -424,13 +424,13 @@ export default function MaterialsPage() {
 									</div>
 
 									{/* 时间 */}
-									<div className="text-sm text-gray-500 flex items-center gap-1.5">
+									<div className="text-sm text-gray-500 flex items-center gap-1.5"><span className="md:hidden block text-[10px] text-gray-400 mb-0.5">上传时间</span>
 										<Calendar className="w-3.5 h-3.5 text-gray-400" />
 										{fmtDate(m.created_at)}
 									</div>
 
 									{/* 操作 */}
-									<div className="flex items-center justify-end gap-2">
+									<div className="col-span-2 md:col-span-1 flex flex-wrap items-center justify-start md:justify-end gap-2 pt-2.5 md:pt-0 mt-1.5 md:mt-0 border-t border-gray-100 md:border-0">
 										{(m.status === "failed" || m.status === "pending") && (
 											<Button
 												size="sm"

@@ -51,6 +51,19 @@
 - **卡片圆角**：小卡片 8px；大容器 12px；按钮/输入框 8px。
 - **卡片阴影**：静态 `0 2px 8px rgba(0,0,0,0.06)`；hover `0 4px 16px rgba(0,0,0,0.10)`；过渡 200ms。
 
+## 管理后台移动端适配（v2.6.0）
+
+- **侧边栏**：<768px 变为抽屉（fixed + translate-x 切换），顶部汉堡按钮唤出，点击遮罩/路由跳转自动关闭。
+- **PageHeader**：`flex-col sm:flex-row`——手机上操作区换行到标题下方全宽、`flex-wrap` 排列；标题 text-xl（手机）/text-2xl（sm+）。
+- **列表页双视图**：`md:hidden` 手机卡片 + `hidden md:block` 桌面表格（records/safety 页）；卡片含姓名+状态首行、3 列 meta 网格、操作按钮底部一行，触控目标 h-8+。
+- **CSS grid 行式列表**（materials/exams/banks）：手机 `grid-cols-2` + 字段加 `md:hidden` 小标签（text-[10px] 灰）；名称 `col-span-2`；操作区 `col-span-2` + 上边框分隔 + `flex-wrap`；表头手机隐藏。
+- **传统 Table 列收纳**：次要列（身份证/手机/部门/创建时间/次数/用时等）加 `hidden md:table-cell`，主列在姓名单元格内以 xs 灰字补充关键信息（workers/users/records 分组视图）。
+- **表格容器**：一律保留 `overflow-x-auto` 兜底（Table 组件内置）。
+- **图表卡头**：`flex-row flex-wrap justify-between gap-2`，图例手机可换行。
+- **工人档案页**：状态卡手机 2 列（md 4 列）；TabsList 手机 text-xs；头部允许 flex-wrap。
+- **筛选区**：统一 `grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4` 或 `flex-wrap`，禁止固定多列挤压。
+- **触控目标**：手机端按钮高度 ≥32px（size=sm h-8），主要操作按钮 h-10。
+
 ## 卡片阴影
 
 - V3 升级：静态 `0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.04)`；hover `0 8px 25px rgba(0,0,0,0.08)`；过渡 200ms。

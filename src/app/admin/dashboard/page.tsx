@@ -197,7 +197,7 @@ export default function DashboardPage() {
 			{/* 趋势图 + 分数段分布 */}
 			<div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 				<Card className="brand-card lg:col-span-2 border-0">
-					<CardHeader className="flex flex-row items-center justify-between pb-2">
+					<CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-2">
 						<CardTitle className="text-base flex items-center gap-2">
 							<TrendingUp className="w-4 h-4 text-[#1677ff]" />
 							近 7 日趋势
@@ -263,7 +263,7 @@ export default function DashboardPage() {
 			{/* 各考试类型分布 */}
 			{showExamType && data.exam_type_stats.length > 0 && (
 				<Card className="brand-card border-0">
-					<CardHeader className="pb-2 flex flex-row items-center justify-between">
+					<CardHeader className="pb-2 flex flex-row flex-wrap items-center justify-between gap-2">
 						<CardTitle className="text-base flex items-center gap-2">
 							<BarChart3 className="w-4 h-4 text-[#8b5cf6]" />
 							各考试类型分布
@@ -335,7 +335,7 @@ export default function DashboardPage() {
 		{/* 班组排行 + 待补考清单 */}
 			<div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 				<Card className="brand-card lg:col-span-2 border-0">
-					<CardHeader className="pb-2 flex flex-row items-center justify-between">
+					<CardHeader className="pb-2 flex flex-row flex-wrap items-center justify-between gap-2">
 						<CardTitle className="text-base flex items-center gap-2">
 							<GraduationCap className="w-4 h-4 text-[#1677ff]" />
 							班组通过率排行
@@ -375,7 +375,7 @@ export default function DashboardPage() {
 				</Card>
 
 				<Card className="brand-card border-0">
-					<CardHeader className="pb-2 flex flex-row items-center justify-between">
+					<CardHeader className="pb-2 flex flex-row flex-wrap items-center justify-between gap-2">
 						<CardTitle className="text-base flex items-center gap-2">
 							<AlertTriangle className="w-4 h-4 text-orange-500" />
 							待补考清单
