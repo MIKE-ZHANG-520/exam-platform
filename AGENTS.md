@@ -133,6 +133,31 @@ src/
 - Lint：`pnpm lint --quiet`
 - 数据库迁移：`coze-coding-ai db upgrade`
 - 模型生成：`coze-coding-ai db generate-models`
+- 全量备份：`pnpm backup`（或 `pnpm exec tsx scripts/backup.ts --note "备注"`）
+- 恢复备份：`pnpm restore --list` / `pnpm restore --latest --dry-run` / `pnpm restore <文件名> --apply --yes`
+
+## 数据备份与版本管理（强制规范）
+
+### 版本号管理
+
+- 版本号在 `package.json` 的 `version` 字段，格式 `主.次.修订`（semver）
+- **每次功能更新递增次版本号（minor），bug 修复递增修订号（patch）**
+- **每次更新必须同步在本文档"版本历史"章节记录**（版本号 + 日期 + 变更内容），此即项目的"版本号记忆"
+- 备份文件名自带版本号（`backup-v{版本}-{时间戳}.json.gz`），数据快照与代码版本对应可溯
+
+### 数据备份
+
+- 备份范围：全部 18 张业务表（users/projects/teams/materials/outlines/question_banks/questions/exams/exam_records/evaluations/workers/worker_profiles/safety_trainings/safety_briefings/special_trainings/person_materials/operation_logs/background_tasks），不含 health_check（系统心跳表）
+- 备份产物：单文件 gzip(JSON) 含 manifest（版本/时间/行数/每表 ID 集合 md5）+ 全部数据
+- 双副本：对象存储 `backups/` 前缀（主备份，上传后回读校验 md5）+ 本地 `backups/` 目录（已 gitignore，禁止入 git）
+- **必须备份的时机**：数据结构变更（加列/加表）、数据迁移、批量增删改、每次发版前
+- 备份脚本：`scripts/backup.ts`（入口）+ `scripts/backup-lib.ts`（共享库，表依赖序在此维护）
+
+### 数据恢复
+
+- 脚本：`scripts/restore.ts`，默认 dry-run（只比对不写入），`--apply --yes` 才真正恢复
+- 恢复流程：自动生成 pre-restore 兜底备份 → 按依赖逆序清空 → 按依赖序插入 → 逐表行数 + ID md5 校验
+- 表依赖序（父表在前）：users → projects → teams → materials → outlines → question_banks → questions → exams → exam_records → evaluations → workers → worker_profiles → safety_trainings → safety_briefings → special_trainings → person_materials → operation_logs → background_tasks
 
 ## 编码规范
 
@@ -154,6 +179,12 @@ src/
 - 动效克制：统一 `duration-150 ease-out`，禁止弹跳/视差
 
 ## 版本历史
+
+### v2.5.0 (2026-09-19)
+- **新增**：全量数据备份/恢复体系（`scripts/backup.ts` + `scripts/restore.ts` + `scripts/backup-lib.ts`），18 张业务表单文件 gzip 备份，对象存储双副本 + md5 回读校验 + ID 集合校验和，恢复支持 dry-run 预览与 pre-restore 自动兜底
+- **新增**：版本号管理规范（package.json version 与备份版本联动，每次更新必须记录版本历史）
+- **数据**：线上库（旧环境）全部业务数据迁移至开发库（新服务器使用）：10 张表 3296 行，迁移后逐表 ID md5 与源库完全一致
+- **修复**：exam_records 表补齐缺失的 updated_at 列（自动过期功能依赖）
 
 ### v2.4.0 (2026-08-01)
 - **新增**：人员入场资料分类上传（person_materials 表 + API + 前端 4 分类卡片）

@@ -14,6 +14,10 @@ __pycache__/
 .env
 .cozeproj/reduction
 
+# 数据备份（含敏感数据，仅存对象存储 + 本地，禁止入 git）
+backups/
+*.json.gz
+
 # 图片文件不入库（避免 IDE 对话截图污染仓库、拖慢部署拉码）
 # public/ 下的图片是产品素材，走白名单
 *.png

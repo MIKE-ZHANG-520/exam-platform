@@ -1,6 +1,6 @@
 {
   "name": "projects",
-  "version": "2.3.3",
+  "version": "2.5.0",
   "private": true,
   "scripts": {
     "build": "bash ./scripts/build.sh",
@@ -10,6 +10,8 @@
     "lint:build": "eslint . --quiet",
     "start": "bash ./scripts/start.sh",
     "ts-check": "tsc -p tsconfig.json",
+    "backup": "tsx scripts/backup.ts",
+    "restore": "tsx scripts/restore.ts",
     "validate": "pnpm run --parallel '/^(ts-check|lint:build)$/'"
   },
   "dependencies": {
@@ -94,7 +96,7 @@
     "shadcn": "latest",
     "tailwindcss": "^4",
     "tsup": "^8.3.5",
-    "tsx": "^4.19.2",
+    "tsx": "^4.21.0",
     "typescript": "^5"
   },
   "packageManager": "pnpm@9.0.0",
